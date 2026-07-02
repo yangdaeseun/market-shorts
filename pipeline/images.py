@@ -10,9 +10,9 @@ from pipeline.util import load_config, log, read_json, DATA
 
 IMG = DATA / "images"
 
-STYLE = (", cinematic dramatic editorial illustration, vertical 9:16 composition, "
-         "dark moody cinematic lighting, high detail, financial news key visual, "
-         "no text, no words, no letters, no watermark")
+STYLE = (", ultra detailed cinematic editorial illustration, vertical 9:16, "
+         "dramatic volumetric lighting, rich colors, 4k, sharp focus, "
+         "professional financial news key visual, no text, no words, no letters, no watermark")
 
 def pollinations(prompt, out, seed=1, w=1080, h=1920):
     q = urllib.parse.quote(prompt + STYLE)

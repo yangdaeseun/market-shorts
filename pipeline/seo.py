@@ -36,6 +36,15 @@ def build(cfg, data, an):
         parts += ["", "[ 악재 ]"] + neg
     if pos:
         parts += ["", "[ 호재 ]"] + pos
+    sup = an.get("supports", [])
+    if sup:
+        parts += ["", "[ 지켜야 할 지지선 ]"] + [f"- {clean(x.get('name',''))} {clean(x.get('level',''))} ({clean(x.get('note',''))})" for x in sup[:4]]
+    wl = an.get("watchlist", [])
+    if wl:
+        parts += ["", "[ 주목 종목 ]"] + [f"- {clean(w.get('name',''))}: {clean(w.get('reason',''))}" for w in wl[:3]]
+    vw = an.get("views", {})
+    if vw.get("short") or vw.get("long"):
+        parts += ["", f"[ 관점 ] 단기 · {clean(vw.get('short',''))} / 장기 · {clean(vw.get('long',''))}"]
     parts += ["", "매일 아침, 밤사이 세계증시를 1분 안에 정리해 드립니다. 구독 부탁드려요!",
               "", "#증시 #미국증시 #나스닥 #비트코인 #주식 #코스피 #반도체 #경제 #재테크 #shorts",
               "", "본 영상은 정보 제공 목적이며 투자 권유가 아닙니다."]

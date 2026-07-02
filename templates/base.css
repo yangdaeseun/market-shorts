@@ -128,3 +128,5 @@ body{
 /* 호재(초록)/악재(빨강) 좌측 바 */
 .why.is-neg::before{background:var(--up);}
 .why.is-pos::before{background:#22C55E;}
+
+.disclaimer{position:absolute;left:0;right:0;bottom:34px;text-align:center;font-size:26px;font-weight:500;color:rgba(255,255,255,.55);letter-spacing:.3px;z-index:3;}

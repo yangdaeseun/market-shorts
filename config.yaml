@@ -51,6 +51,8 @@ markets:
     "S&P 500": "^GSPC"
     "나스닥": "^IXIC"
     "다우": "^DJI"
+    "코스피": "^KS11"
+    "코스닥": "^KQ11"
   macro:
     "WTI 유가": "CL=F"
     "금": "GC=F"

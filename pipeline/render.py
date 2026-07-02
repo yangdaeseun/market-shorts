@@ -41,79 +41,84 @@ def hl(headline_html):
 
 # ---------- 슬라이드 빌더 ----------
 def build_slides(cfg, data, an):
-    date = data.get("date", "")
+    idx = data.get("indices", {})
+    crypto = data.get("crypto", {})
     slides = []
 
-    # 훅: 밤사이 가장 크게 움직인 지수를 표지 큰 숫자로 (첫 3초 임팩트)
     hero = None
-    for nm, d in data.get("indices", {}).items():
+    for nm, d in idx.items():
         if d.get("pct") is None:
             continue
         if hero is None or abs(d["pct"]) > abs(hero[1]):
             hero = (nm, d["pct"])
-    hero_name = hero[0] if hero else ""
-    hero_pct = fmt_pct(hero[1]) if hero else ""
-    hero_dir = dir_cls(hero[1]) if hero else "flat"
+    hn = hero[0] if hero else ""
+    hp = fmt_pct(hero[1]) if hero else ""
+    hd = dir_cls(hero[1]) if hero else "flat"
+    date = data.get("date", "")
+    prefix = cfg["channel"]["title_prefix"]
 
     # 1) 표지
-    slides.append({
-        "type": "cover",
+    slides.append({"type": "cover", "img_key": "cover",
         "eyebrow": f"{date} · 밤사이 글로벌 시황",
-        "hero_name": hero_name, "hero_pct": hero_pct, "hero_dir": hero_dir,
-        "title_html": hl(an.get("headline_html", an.get("one_liner", ""))),
-        "subtitle": an.get("one_liner", ""),
-        "foot": cfg["channel"]["title_prefix"],
-    })
+        "hero_name": hn, "hero_pct": hp, "hero_dir": hd,
+        "title_html": hl(an.get("headline_html", "")),
+        "subtitle": an.get("one_liner", ""), "foot": prefix})
 
-    # 2) 지수
+    # 2) 지수 한눈에 (미국+한국+비트)
     items = []
-    for name, d in data.get("indices", {}).items():
-        items.append({"name": name, "sub": d.get("ticker", ""),
-                      "pct": fmt_pct(d.get("pct")), "dir": dir_cls(d.get("pct")),
-                      "val": fmt_price(name, d.get("price"))})
-    slides.append({"type": "indices", "eyebrow": "미국 증시",
-                   "page": "1", "title_html": "3대 지수 <span class='em'>한눈에</span>",
-                   "items": items})
+    for nm in ["나스닥", "S&P 500", "코스피", "코스닥"]:
+        d = idx.get(nm)
+        if d and d.get("pct") is not None:
+            items.append({"name": nm, "sub": d.get("ticker", ""),
+                          "pct": fmt_pct(d["pct"]), "dir": dir_cls(d["pct"]),
+                          "val": fmt_price(nm, d.get("price"))})
+    bt = crypto.get("비트코인")
+    if bt and bt.get("pct") is not None:
+        items.append({"name": "비트코인", "sub": "BTC", "pct": fmt_pct(bt["pct"]),
+                      "dir": dir_cls(bt["pct"]), "val": fmt_price("비트코인", bt.get("price"))})
+    slides.append({"type": "indices", "eyebrow": "오늘 한눈에", "page": "1",
+                   "title_html": "지수 <span class='em'>한눈에</span>", "items": items[:5]})
 
-    # 3) 왜? (시그니처)
-    whys = []
-    for w in an.get("why", [])[:4]:
-        cls = {"up": "is-up", "down": "is-down"}.get(w.get("dir"), "")
-        whys.append({"cls": cls, "lead_html": html.escape(w.get("lead", "")),
-                     "body": w.get("body", "")})
-    slides.append({"type": "why", "eyebrow": "핵심 이유",
-                   "page": "2", "title_html": "왜 <span class='em'>이렇게</span> 움직였나",
-                   "items": whys})
+    # 3) 왜 움직였나
+    slides.append({"type": "why", "img_key": "why", "eyebrow": "핵심 이유", "page": "2",
+                   "title_html": "왜 <span class='em'>이렇게</span> 움직였나",
+                   "items": [{"cls": ("is-up" if w.get("dir") == "up" else "is-down" if w.get("dir") == "down" else ""),
+                              "lead_html": html.escape(w.get("lead", "")), "body": w.get("body", "")}
+                             for w in an.get("why", [])[:4]]})
 
-    # 4) 코인·유가·금·환율·금리
-    rows = []
-    order = ["비트코인", "이더리움", "WTI 유가", "금", "달러인덱스", "원/달러", "미 국채 10년"]
-    src = {**data.get("crypto", {}), **data.get("macro", {})}
-    for name in order:
-        if name in src:
-            d = src[name]
-            rows.append({"name": name, "dir": dir_cls(d.get("pct")),
-                         "rate": fmt_pct(d.get("pct")),
-                         "price": fmt_price(name, d.get("price"))})
-    slides.append({"type": "rows", "eyebrow": "코인·원자재·환율",
-                   "page": "3", "title_html": "그 외 <span class='em'>시장</span>",
-                   "items": rows})
+    # 4) 지지선
+    sup = an.get("supports", [])
+    if sup:
+        slides.append({"type": "rows", "img_key": "supports", "eyebrow": "지지선 체크", "page": "3",
+                       "title_html": "지켜야 할 <span class='em'>지지선</span>",
+                       "items": [{"name": x.get("name", ""), "dir": "flat",
+                                  "rate": x.get("level", ""), "price": x.get("note", "")} for x in sup[:4]]})
 
-    # 5) 한국장 전망 + 댓글유도
-    ko = an.get("korea", {})
-    slides.append({"type": "korea", "eyebrow": "오늘 한국장",
-                   "page": "4", "tag": "KOSPI 전망",
-                   "line_html": html.escape(ko.get("line", "")),
-                   "note": ko.get("note", ""),
-                   "cta_html": "오늘 시장, <span class='q'>어떻게 보시나요?</span> 👇"})
+    # 5) 주목 종목
+    wl = an.get("watchlist", [])
+    if wl:
+        slides.append({"type": "why", "img_key": "watch", "eyebrow": "주목 종목", "page": "4",
+                       "title_html": "눈여겨볼 <span class='em'>종목·섹터</span>",
+                       "items": [{"cls": "is-pos", "lead_html": html.escape(w.get("name", "")),
+                                  "body": w.get("reason", "")} for w in wl[:3]]})
 
-    # 6) 호재 vs 악재 (종합 변수)
+    # 6) 호재 vs 악재
     fac = an.get("factors", {})
-    fitems = ([{"cls": "is-neg", "lead_html": "\U0001F534 " + html.escape(x), "body": ""} for x in fac.get("neg", [])]
-              + [{"cls": "is-pos", "lead_html": "\U0001F7E2 " + html.escape(x), "body": ""} for x in fac.get("pos", [])])
+    fitems = ([{"cls": "is-neg", "lead_html": "\U0001F534 " + html.escape(x), "body": ""} for x in fac.get("neg", [])[:3]]
+              + [{"cls": "is-pos", "lead_html": "\U0001F7E2 " + html.escape(x), "body": ""} for x in fac.get("pos", [])[:3]])
     if fitems:
-        slides.append({"type": "why", "eyebrow": "종합 변수", "page": "5",
+        slides.append({"type": "why", "img_key": "factors", "eyebrow": "종합 변수", "page": "5",
                        "title_html": "<span class='em'>호재</span> vs 악재", "items": fitems})
+
+    # 7) 한국장 + 단기/장기 관점
+    ko = an.get("korea", {})
+    vw = an.get("views", {})
+    note = ko.get("note", "")
+    if vw.get("short") or vw.get("long"):
+        note = f"단기 · {vw.get('short','')}   /   장기 · {vw.get('long','')}"
+    slides.append({"type": "korea", "img_key": "korea", "eyebrow": "오늘 한국장 · 관점", "page": "6",
+                   "tag": "KOSPI 전망", "line_html": html.escape(ko.get("line", "")),
+                   "note": note, "cta_html": "오늘 시장, <span class='q'>어떻게 보시나요?</span> 👇"})
     return slides
 
 # ---------- 렌더 ----------
@@ -149,16 +154,10 @@ def main():
     data = read_json(DATA / "data.json")
     an = read_json(DATA / "analysis.json")
     slides = build_slides(cfg, data, an)
-    # 배경 이미지 연결: cover→cover, 첫 why→why, 둘째 why(호재악재)→factors, korea→korea
-    seen_why = False
     for sl in slides:
-        t = sl.get("type"); key = None
-        if t == "cover": key = "cover"
-        elif t == "korea": key = "korea"
-        elif t == "why":
-            key = "why" if not seen_why else "factors"; seen_why = True
-        if key and (DATA / "images" / f"{key}.png").exists():
-            sl["bg_image"] = f"images/{key}.png"
+        k = sl.get("img_key")
+        if k and (DATA / "images" / f"{k}.png").exists():
+            sl["bg_image"] = f"images/{k}.png"
     write_json(DATA / "slides_meta.json", slides)
     paths = render(cfg, slides)
     write_json(DATA / "narration.json", {"text": an.get("narration", "")})
