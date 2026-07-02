@@ -106,6 +106,14 @@ def build_slides(cfg, data, an):
                    "line_html": html.escape(ko.get("line", "")),
                    "note": ko.get("note", ""),
                    "cta_html": "오늘 시장, <span class='q'>어떻게 보시나요?</span> 👇"})
+
+    # 6) 호재 vs 악재 (종합 변수)
+    fac = an.get("factors", {})
+    fitems = ([{"cls": "is-neg", "lead_html": "\U0001F534 " + html.escape(x), "body": ""} for x in fac.get("neg", [])]
+              + [{"cls": "is-pos", "lead_html": "\U0001F7E2 " + html.escape(x), "body": ""} for x in fac.get("pos", [])])
+    if fitems:
+        slides.append({"type": "why", "eyebrow": "종합 변수", "page": "5",
+                       "title_html": "<span class='em'>호재</span> vs 악재", "items": fitems})
     return slides
 
 # ---------- 렌더 ----------
@@ -141,12 +149,16 @@ def main():
     data = read_json(DATA / "data.json")
     an = read_json(DATA / "analysis.json")
     slides = build_slides(cfg, data, an)
-    # 배경 이미지 연결 (images 단계가 만든 파일이 있으면)
-    keymap = {"cover": "cover", "why": "why", "korea": "korea"}
+    # 배경 이미지 연결: cover→cover, 첫 why→why, 둘째 why(호재악재)→factors, korea→korea
+    seen_why = False
     for sl in slides:
-        k = keymap.get(sl.get("type"))
-        if k and (DATA / "images" / f"{k}.png").exists():
-            sl["bg_image"] = f"images/{k}.png"
+        t = sl.get("type"); key = None
+        if t == "cover": key = "cover"
+        elif t == "korea": key = "korea"
+        elif t == "why":
+            key = "why" if not seen_why else "factors"; seen_why = True
+        if key and (DATA / "images" / f"{key}.png").exists():
+            sl["bg_image"] = f"images/{key}.png"
     write_json(DATA / "slides_meta.json", slides)
     paths = render(cfg, slides)
     write_json(DATA / "narration.json", {"text": an.get("narration", "")})

@@ -33,7 +33,7 @@ video:
 voice:
   provider: "edge"          # edge | elevenlabs
   edge_voice: "ko-KR-InJoonNeural"   # 남성 아나운서 톤. 여성=ko-KR-SunHiNeural
-  rate: "+8%"               # 살짝 빠르게 = 숏츠 리듬
+  rate: "+48%"           # 약 1.5배 빠르게 (숏츠 리듬)               # 살짝 빠르게 = 숏츠 리듬
   elevenlabs_voice_id: ""   # provider=elevenlabs 일 때만
 
 # 디자인 (Toss 베이스). 색만 바꾸면 전체 톤 바뀜.
@@ -66,6 +66,8 @@ news_rss:
   - "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
   - "https://www.investing.com/rss/news_25.rss"
   - "https://feeds.content.dowjones.io/public/rss/mw_topstories"
+  - "https://www.yna.co.kr/rss/economy.xml"
+  - "https://www.hankyung.com/feed/economy"
 
 # 품질 게이트 (마스터프롬프트의 '90점 미만 재생성' 자동화)
 quality:

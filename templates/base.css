@@ -124,3 +124,7 @@ body{
     rgba(6,10,20,.78) 0%, rgba(6,10,20,.42) 34%,
     rgba(6,10,20,.55) 64%, rgba(6,10,20,.90) 100%);}
 .stage > :not(.bgimg):not(.bgshade){position:relative;z-index:2;}
+
+/* 호재(초록)/악재(빨강) 좌측 바 */
+.why.is-neg::before{background:var(--up);}
+.why.is-pos::before{background:#22C55E;}
