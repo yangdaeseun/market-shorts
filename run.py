@@ -59,6 +59,9 @@ def main():
                 held = True
                 notify(cfg, f"⚠️ 시황숏츠 품질 미달({pts}점) → 비공개 보류")
 
+    # 3.5) 배경 이미지 생성(실패해도 계속)
+    step("이미지 images", ["pipeline/images.py"] + mock, cfg, allow_fail=True)
+
     # 4) 렌더 → 5) 더빙 → 6) SEO
     step("렌더 render", ["pipeline/render.py"], cfg)
     step("더빙 tts", ["pipeline/tts.py"], cfg, allow_fail=True)

@@ -12,6 +12,7 @@
 </head>
 <body class="theme-{{ d.theme }}">
 <div class="stage">
+{% if slide.bg_image %}<img class="bgimg" src="{{ slide.bg_image }}"><div class="bgshade"></div>{% endif %}
 
 {% if slide.type == "cover" %}
   <div class="cover-head">{{ slide.eyebrow }}</div>

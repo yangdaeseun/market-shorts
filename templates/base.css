@@ -115,3 +115,12 @@ body{
   background:var(--card);border:1px solid var(--line);border-radius:28px;
   padding:40px 48px;text-align:center;}
 .ko-cta .q{color:var(--accent);}
+
+
+/* ===== 배경 이미지 (AI 생성) + 가독성 오버레이 ===== */
+.bgimg{position:absolute;inset:0;width:1080px;height:1920px;object-fit:cover;z-index:0;}
+.bgshade{position:absolute;inset:0;z-index:1;
+  background:linear-gradient(180deg,
+    rgba(6,10,20,.78) 0%, rgba(6,10,20,.42) 34%,
+    rgba(6,10,20,.55) 64%, rgba(6,10,20,.90) 100%);}
+.stage > :not(.bgimg):not(.bgshade){position:relative;z-index:2;}

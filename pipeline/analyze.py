@@ -12,15 +12,20 @@ from pipeline.util import load_config, log, read_json, write_json, DATA
 SCHEMA_HINT = """
 반드시 아래 JSON 형식 '하나만' 출력. 마크다운/설명/백틱 금지.
 {
-  "one_liner": "오늘 시장을 한 문장으로 (20자 내외, 임팩트)",
-  "headline_html": "표지 제목. 핵심 단어를 <up>..</up>(상승) 또는 <down>..</down>(하락)으로 감쌈. 25자 내외",
+  "one_liner": "오늘 시장 한 문장 (18자 내외, 임팩트)",
+  "headline_html": "표지 제목. 핵심 단어를 <up>..</up>(상승)/<down>..</down>(하락)으로 감쌈. 22자 내외",
   "why": [
-    {"dir":"up|down|neutral","lead":"굵게 보일 핵심 한 줄(숫자 근거 포함, 22자 내외)","body":"부연 한 줄(28자 내외)"}
+    {"dir":"up|down|neutral","lead":"굵게 보일 핵심 한 줄(숫자 근거, 22자 내외)","body":"부연 한 줄(28자 내외)"}
   ],
-  "korea": {"line":"오늘 한국장 전망 한 줄(상승/하락 방향 명확히, 24자 내외)","note":"이유 한 줄(30자 내외)"},
-  "narration": "위 내용을 자연스러운 한국어 구어체로 이어 읽는 25~38초 분량 내레이션. 숫자는 또박또박. 마지막에 '오늘 하루도 성투하세요' 류 마무리."
+  "korea": {"line":"오늘/내일 한국장 전망 한 줄(방향 명확, 24자 내외)","note":"이유+앞으로 호재 한 줄(30자 내외)"},
+  "images": {
+    "cover": "표지 배경용 '영어' 이미지 프롬프트. 오늘 시장을 상징하는 드라마틱한 장면(예: cracking NVIDIA AI chip, red crash arrows). 텍스트 없이.",
+    "why": "'왜 움직였나'를 상징하는 영어 이미지 프롬프트(반도체/AI/차익실현 등 오늘 원인). 텍스트 없이.",
+    "korea": "한국 증시 상황을 상징하는 영어 이미지 프롬프트(코스피 전광판, 서울 배경 등). 텍스트 없이."
+  },
+  "narration": "숏츠 아나운서 대본. 첫 문장은 아주 짧고 강한 후킹(예: '오늘, 반도체가 무너졌습니다'). 이어서 미국 왜 움직였나 → 오늘/내일 전망 → 앞으로 호재까지. 빠른 호흡, 40~55초(한국어 240~300자). 마지막 '오늘도 성투하세요'."
 }
-why 배열은 3~4개. 숫자는 데이터에 있는 실제 등락률 사용. 과장/허위 금지.
+why 배열은 3~4개. 숫자는 데이터의 실제 등락률만. 과장/허위 금지. images 프롬프트는 영어로, 글자가 안 들어가게.
 """
 
 def build_prompt(data):
@@ -69,6 +74,11 @@ def mock(data):
         ],
         "korea": {"line": "코스피 상승 출발 기대",
                   "note": "미 기술주 강세·금리 안정이 우호적"},
+        "images": {
+            "cover": "dramatic cinematic illustration, glowing NVIDIA-like AI accelerator chip cracking with red fissures, shattered smaller chips, NASDAQ red crash arrows, dark blue and red neon, vertical",
+            "why": "cinematic scene of semiconductor wafers and AI server racks with red downward arrows, profit-taking selloff, moody dark tech atmosphere, vertical",
+            "korea": "cinematic Seoul financial district at dusk, huge KOSPI ticker board glowing red with falling arrows, tense mood, vertical"
+        },
         "narration": ("밤사이 미국 증시, 정리해 드립니다. "
                       "나스닥이 1.84퍼센트 오르며 AI주가 시장을 끌어올렸습니다. "
                       "엔비디아의 칩 수요 전망이 강하게 나왔고, "

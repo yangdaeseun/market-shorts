@@ -141,6 +141,12 @@ def main():
     data = read_json(DATA / "data.json")
     an = read_json(DATA / "analysis.json")
     slides = build_slides(cfg, data, an)
+    # 배경 이미지 연결 (images 단계가 만든 파일이 있으면)
+    keymap = {"cover": "cover", "why": "why", "korea": "korea"}
+    for sl in slides:
+        k = keymap.get(sl.get("type"))
+        if k and (DATA / "images" / f"{k}.png").exists():
+            sl["bg_image"] = f"images/{k}.png"
     write_json(DATA / "slides_meta.json", slides)
     paths = render(cfg, slides)
     write_json(DATA / "narration.json", {"text": an.get("narration", "")})
