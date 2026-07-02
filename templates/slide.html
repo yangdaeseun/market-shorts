@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<style>{{ css }}</style>
+<style>
+  :root{
+    --up:{{ d.up_color }};--down:{{ d.down_color }};--accent:{{ d.accent }};
+    --bg:{{ d.bg }};--card:{{ d.card }};
+  }
+</style>
+</head>
+<body class="theme-{{ d.theme }}">
+<div class="stage">
+
+{% if slide.type == "cover" %}
+  <div class="cover-head">{{ slide.eyebrow }}</div>
+  {% if slide.hero_pct %}
+  <div class="cover-hero">
+    <div class="cover-hero-name">{{ slide.hero_name }}</div>
+    <div class="cover-hero-pct {{ slide.hero_dir }}">{{ slide.hero_pct }}</div>
+  </div>
+  {% endif %}
+  <div class="cover-title">{{ slide.title_html | safe }}</div>
+  <div class="cover-sub">{{ slide.subtitle }}</div>
+  <div class="cover-why">왜 올랐고 왜 떨어졌나 →</div>
+  <div class="cover-foot"><span>{{ slide.foot }}</span><span class="bar"></span></div>
+
+{% elif slide.type == "indices" %}
+  <div class="eyebrow"><span class="dot"></span>{{ slide.eyebrow }}</div>
+  <div class="page">{{ slide.page }}</div>
+  <div class="h1">{{ slide.title_html | safe }}</div>
+  <div class="cards">
+  {% for c in slide['items'] %}
+    <div class="card">
+      <div class="name">{{ c.name }}<span class="tk">{{ c.sub }}</span></div>
+      <div class="right">
+        <div class="pct {{ c.dir }}">{{ c.pct }}</div>
+        <div class="val">{{ c.val }}</div>
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+
+{% elif slide.type == "why" %}
+  <div class="eyebrow"><span class="dot"></span>{{ slide.eyebrow }}</div>
+  <div class="page">{{ slide.page }}</div>
+  <div class="h1">{{ slide.title_html | safe }}</div>
+  <div class="why-wrap">
+  {% for w in slide['items'] %}
+    <div class="why {{ w.cls }}">
+      <div class="lead">{{ w.lead_html | safe }}</div>
+      {% if w.body %}<div class="body">{{ w.body }}</div>{% endif %}
+    </div>
+  {% endfor %}
+  </div>
+
+{% elif slide.type == "rows" %}
+  <div class="eyebrow"><span class="dot"></span>{{ slide.eyebrow }}</div>
+  <div class="page">{{ slide.page }}</div>
+  <div class="h1">{{ slide.title_html | safe }}</div>
+  <div class="rows">
+  {% for r in slide['items'] %}
+    <div class="row">
+      <div class="nm">{{ r.name }}</div>
+      <div style="display:flex;align-items:baseline;">
+        <span class="rt {{ r.dir }}">{{ r.rate }}</span>
+        <span class="px">{{ r.price }}</span>
+      </div>
+    </div>
+  {% endfor %}
+  </div>
+
+{% elif slide.type == "korea" %}
+  <div class="eyebrow"><span class="dot"></span>{{ slide.eyebrow }}</div>
+  <div class="page">{{ slide.page }}</div>
+  <span class="ko-tag">{{ slide.tag }}</span>
+  <div class="ko-line">{{ slide.line_html | safe }}</div>
+  <div class="ko-note">{{ slide.note }}</div>
+  <div class="ko-cta">{{ slide.cta_html | safe }}</div>
+{% endif %}
+
+</div>
+</body>
+</html>

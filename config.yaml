@@ -1,0 +1,79 @@
+# ============================================================
+#  글로벌 야간 시황 숏츠 - 단일 설정 파일
+#  여기만 고치면 됩니다. 코드는 건드리지 마세요.
+# ============================================================
+
+channel:
+  title_prefix: "🌍 밤사이 세계증시"      # 영상 제목 앞에 붙는 말
+  language: "ko"
+  timezone: "Asia/Seoul"
+
+# 매일 발행 시각 (한국시간). GitHub Actions cron이 이 값을 참고.
+# 미국장 마감(한국 오전 5~6시) 직후가 적당.
+publish:
+  hour_kst: 7
+  minute_kst: 0
+  privacy: "public"        # public / unlisted / private  (테스트는 private 추천)
+  category_id: "25"        # 25 = News & Politics
+  made_for_kids: false
+
+# 영상 스펙
+video:
+  width: 1080
+  height: 1920
+  fps: 30
+  seconds_per_slide: 5.0    # 슬라이드 1장 노출 시간
+  transition: "fade"        # fade / none
+  bgm: true                 # assets/bgm.mp3 있으면 자동 삽입
+  bgm_volume: 0.12
+  voiceover: true           # 자동 더빙(edge-tts 무료). 끄려면 false
+  subtitles: true
+
+# 음성 (무료 기본 = edge-tts. ElevenLabs 쓰려면 voice.provider 변경)
+voice:
+  provider: "edge"          # edge | elevenlabs
+  edge_voice: "ko-KR-InJoonNeural"   # 남성 아나운서 톤. 여성=ko-KR-SunHiNeural
+  rate: "+8%"               # 살짝 빠르게 = 숏츠 리듬
+  elevenlabs_voice_id: ""   # provider=elevenlabs 일 때만
+
+# 디자인 (Toss 베이스). 색만 바꾸면 전체 톤 바뀜.
+design:
+  theme: "dark"             # dark | light
+  up_color: "#F04452"       # 상승 = 빨강 (한국 관례)
+  down_color: "#3182F6"     # 하락 = 파랑
+  accent: "#3182F6"
+  bg: "#0B1220"             # 짙은 네이비 = 새벽/야간 감성 + 글자 잘 보임
+  card: "#151D2E"
+
+# 수집할 종목 (yfinance 티커)
+markets:
+  indices:
+    "S&P 500": "^GSPC"
+    "나스닥": "^IXIC"
+    "다우": "^DJI"
+  macro:
+    "WTI 유가": "CL=F"
+    "금": "GC=F"
+    "달러인덱스": "DX-Y.NYB"
+    "원/달러": "KRW=X"
+    "미 국채 10년": "^TNX"
+  crypto:                    # CoinGecko id
+    "비트코인": "bitcoin"
+    "이더리움": "ethereum"
+
+# 밤사이 뉴스 RSS (헤드라인 인과 근거용)
+news_rss:
+  - "https://feeds.a.dj.com/rss/RSSMarketsMain.xml"
+  - "https://www.investing.com/rss/news_25.rss"
+  - "https://feeds.content.dowjones.io/public/rss/mw_topstories"
+
+# 품질 게이트 (마스터프롬프트의 '90점 미만 재생성' 자동화)
+quality:
+  min_score: 80             # 이 점수 미만이면 재생성 1회 시도
+  max_retries: 1
+  hold_on_fail: true        # 끝내 미달이면 업로드 보류(=private) + 알림
+
+# 실패/완료 알림 (선택). 텔레그램이 가장 간단.
+notify:
+  telegram_enabled: false
+  # 토큰/챗ID는 GitHub Secrets(TELEGRAM_TOKEN, TELEGRAM_CHAT)로 주입
