@@ -2,8 +2,17 @@ name: daily-market-shorts
 
 on:
   schedule:
-    - cron: "0 21 * * *"
-  workflow_dispatch: {}
+    - cron: "0 21 * * *"   # 06:00 KST  아침 브리핑(morning)
+    - cron: "0 23 * * *"   # 08:00 KST  개장 직전(preopen)
+    - cron: "0 9 * * *"    # 18:00 KST  마감 복기(close)
+    - cron: "0 13 * * *"   # 22:00 KST  미국장 프리뷰(uspreview)
+  workflow_dispatch:
+    inputs:
+      slot:
+        description: "시간대(slot)"
+        type: choice
+        default: morning
+        options: [morning, preopen, close, uspreview]
 
 permissions:
   contents: write
@@ -17,18 +26,39 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Install ffmpeg & Korean font
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg fonts-nanum
+          sudo fc-cache -f
       - name: Install deps
         run: |
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
+      - name: Decide slot
+        id: slot
+        run: |
+          IN="${{ github.event.inputs.slot }}"
+          if [ -n "$IN" ]; then
+            echo "slot=$IN" >> "$GITHUB_OUTPUT"
+          else
+            H=$(date -u +%H)
+            case "$H" in
+              21) S=morning;;
+              23) S=preopen;;
+              09) S=close;;
+              13) S=uspreview;;
+              *)  S=morning;;
+            esac
+            echo "slot=$S" >> "$GITHUB_OUTPUT"
+          fi
       - name: Run pipeline
         env:
           GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
           YT_CLIENT_ID:     ${{ secrets.YT_CLIENT_ID }}
           YT_CLIENT_SECRET: ${{ secrets.YT_CLIENT_SECRET }}
           YT_REFRESH_TOKEN: ${{ secrets.YT_REFRESH_TOKEN }}
+          SLOT:             ${{ steps.slot.outputs.slot }}
         run: python run.py
       - name: Save outputs
         if: always()
@@ -39,5 +69,4 @@ jobs:
             data/short.mp4
             data/slides/*.png
             data/meta.json
-            logs/run.log
           retention-days: 7
