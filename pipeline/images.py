@@ -15,14 +15,24 @@ STYLE = (", ultra detailed cinematic editorial illustration, vertical 9:16, "
          "professional financial news key visual, no text, no words, no letters, no watermark")
 
 def pollinations(prompt, out, seed=1, w=1080, h=1920):
+    import time
     q = urllib.parse.quote(prompt + STYLE)
-    url = (f"https://image.pollinations.ai/prompt/{q}"
-           f"?width={w}&height={h}&nologo=true&model=flux&seed={seed}")
-    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    data = urllib.request.urlopen(req, timeout=150).read()
-    if data and len(data) > 8000:
-        out.write_bytes(data)
-        return True
+    # 무료 서비스라 일시적 실패가 잦음 → 시드/모델 바꿔 최대 3회 재시도
+    attempts = [
+        f"https://image.pollinations.ai/prompt/{q}?width={w}&height={h}&nologo=true&model=flux&seed={seed}",
+        f"https://image.pollinations.ai/prompt/{q}?width={w}&height={h}&nologo=true&model=flux&seed={seed+100}",
+        f"https://image.pollinations.ai/prompt/{q}?width={w}&height={h}&nologo=true&seed={seed+200}",
+    ]
+    for k, url in enumerate(attempts):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            data = urllib.request.urlopen(req, timeout=150).read()
+            if data and len(data) > 8000:
+                out.write_bytes(data)
+                return True
+        except Exception as e:
+            log(f"[images]   시도 {k+1} 실패: {e}")
+        time.sleep(3)
     return False
 
 def main():

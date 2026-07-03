@@ -8,6 +8,10 @@ collect.py — 밤사이 글로벌 시장 데이터 수집
 """
 import sys, json, datetime, argparse, pathlib, traceback
 
+def kst_date():
+    # GitHub Actions는 UTC로 돌기 때문에 한국시간(UTC+9) 기준 날짜로 고정
+    return (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).date().isoformat()
+
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from pipeline.util import load_config, log, DATA
@@ -79,7 +83,7 @@ def fetch_news(feeds: list, limit=12):
 
 def mock():
     return {
-        "date": datetime.date.today().isoformat(),
+        "date": kst_date(),
         "indices": {
             "S&P 500": {"ticker": "^GSPC", "price": 6321.4, "pct": 1.12},
             "나스닥": {"ticker": "^IXIC", "price": 20890.3, "pct": 1.84},
@@ -118,7 +122,7 @@ def main():
     else:
         log("[collect] fetching live data ...")
         data = {
-            "date": datetime.date.today().isoformat(),
+            "date": kst_date(),
             "indices": fetch_yf(cfg["markets"]["indices"]),
             "macro": fetch_yf(cfg["markets"]["macro"]),
             "crypto": fetch_crypto(cfg["markets"]["crypto"]),
