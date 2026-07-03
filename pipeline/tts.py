@@ -7,6 +7,16 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from pipeline.util import load_config, log, read_json, DATA
 
+SPEAK_FIX = {  # edge-tts 발음/어색함 교정 (음성에만 적용, 슬라이드 글자는 그대로). 긴 패턴 먼저.
+    "주목하세요": "눈여겨보세요", "주목해야": "눈여겨봐야", "주목할": "눈여겨볼",
+    "주목받는": "관심받는", "주목받": "관심받", "주목되": "관심되", "주목": "눈여겨볼 곳",
+}
+
+def _fix_speak(t):
+    for a, b in SPEAK_FIX.items():
+        t = t.replace(a, b)
+    return t
+
 OUT = DATA / "narration.mp3"
 SRT = DATA / "narration.srt"
 
@@ -25,6 +35,7 @@ def _write_srt(subs):
 
 async def _edge(text, voice, rate):
     import edge_tts
+    text = _fix_speak(text)
     com = edge_tts.Communicate(text=text, voice=voice, rate=rate)
     subs = []
     cur, cur_start, cur_end = [], None, None
@@ -57,7 +68,7 @@ def _elevenlabs(text, voice_id):
     r = requests.post(
         f"https://api.elevenlabs.io/v1/text-to-speech/{voice_id}",
         headers={"xi-api-key": key, "Content-Type": "application/json"},
-        json={"text": text, "model_id": "eleven_multilingual_v2"}, timeout=60)
+        json={"text": _fix_speak(text), "model_id": "eleven_multilingual_v2"}, timeout=60)
     r.raise_for_status()
     OUT.write_bytes(r.content)
 
