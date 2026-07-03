@@ -7,13 +7,7 @@ on:
     - cron: "17 23 * * *"   # 08:17 KST  개장 직전(preopen)
     - cron: "17 9 * * *"    # 18:17 KST  마감 복기(close)
     - cron: "17 13 * * *"   # 22:17 KST  미국장 프리뷰(uspreview)
-  workflow_dispatch:
-    inputs:
-      slot:
-        description: "시간대(slot)"
-        type: choice
-        default: morning
-        options: [morning, preopen, close, uspreview]
+  workflow_dispatch: {}
 
 permissions:
   contents: write
@@ -36,23 +30,15 @@ jobs:
         run: |
           pip install -r requirements.txt
           python -m playwright install --with-deps chromium
-      - name: Decide slot
+      - name: Decide slot (KST 시간 기준 자동)
         id: slot
         run: |
-          IN="${{ github.event.inputs.slot }}"
-          if [ -n "$IN" ]; then
-            echo "slot=$IN" >> "$GITHUB_OUTPUT"
-          else
-            H=$(date -u +%H)
-            case "$H" in
-              21) S=morning;;
-              23) S=preopen;;
-              09) S=close;;
-              13) S=uspreview;;
-              *)  S=morning;;
-            esac
-            echo "slot=$S" >> "$GITHUB_OUTPUT"
-          fi
+          H=$(date -u -d '+9 hours' +%H)
+          if [ "$H" -ge 3 ] && [ "$H" -lt 7 ]; then S=morning
+          elif [ "$H" -ge 7 ] && [ "$H" -lt 12 ]; then S=preopen
+          elif [ "$H" -ge 12 ] && [ "$H" -lt 20 ]; then S=close
+          else S=uspreview; fi
+          echo "slot=$S" >> "$GITHUB_OUTPUT"
       - name: Run pipeline
         env:
           GEMINI_API_KEY:   ${{ secrets.GEMINI_API_KEY }}
