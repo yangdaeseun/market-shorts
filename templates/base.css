@@ -138,3 +138,10 @@ body{
 .level-하{color:#fff;background:linear-gradient(135deg,#3182F6,#1E40AF);}
 .impact-stars{font-size:110px;letter-spacing:12px;color:#FFD34E;text-shadow:0 4px 20px rgba(255,180,0,.35);}
 .impact-reason{font-size:46px;font-weight:600;color:rgba(255,255,255,.9);text-align:center;max-width:900px;line-height:1.35;}
+
+.spot-name{margin-top:150px;font-size:118px;font-weight:900;color:#fff;line-height:1.05;letter-spacing:-1px;}
+.spot-tag{display:inline-block;margin-left:22px;font-size:40px;font-weight:800;color:#0B1220;background:#FFD34E;padding:8px 26px;border-radius:999px;vertical-align:middle;}
+.spot-rows{margin-top:70px;display:flex;flex-direction:column;gap:34px;}
+.spot-row{display:flex;align-items:flex-start;gap:26px;}
+.spot-k{flex:0 0 200px;font-size:46px;font-weight:800;color:var(--accent);}
+.spot-v{flex:1;font-size:52px;font-weight:600;color:rgba(255,255,255,.94);line-height:1.32;}

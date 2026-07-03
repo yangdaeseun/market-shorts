@@ -1,50 +1,131 @@
 """
 make_video.py — 슬라이드 PNG + 내레이션 → 1080x1920 세로 MP4.
-- 슬라이드별 부드러운 줌(Ken Burns) + 페이드
-- 내레이션 길이에 맞춰 영상 길이 자동 정렬
-- BGM(assets/bgm.mp3 있으면) 자동 믹스
-ffmpeg만 사용. CapCut 불필요.
+- 슬라이드마다 줌 방향 교차(줌인/줌아웃) + 첫 슬라이드 훅 펀치 줌
+- 슬라이드 사이 크로스페이드 전환(xfade). 실패하면 단순 concat으로 자동 폴백
+- 내레이션 길이에 맞춰 영상 길이 자동 정렬 / (선택) 자막 번인
 """
 import sys, os, json, subprocess, pathlib, glob, traceback
-
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from pipeline.util import load_config, log, DATA
 
 SLIDES = DATA / "slides"
 NARR = DATA / "narration.mp3"
+SRT = DATA / "narration.srt"
 BGM = ROOT / "assets" / "bgm.mp3"
 OUT = DATA / "short.mp4"
-SRT = DATA / "narration.srt"
 TMP = DATA / "_clips"
+XFADE = 0.5  # 전환 시간(초)
 
 def ffprobe_dur(path):
     try:
-        out = subprocess.check_output([
-            "ffprobe", "-v", "error", "-show_entries", "format=duration",
-            "-of", "default=nw=1:nk=1", str(path)], text=True).strip()
+        out = subprocess.check_output(["ffprobe", "-v", "error", "-show_entries",
+            "format=duration", "-of", "default=nw=1:nk=1", str(path)], text=True).strip()
         return float(out)
     except Exception:
         return 0.0
 
 def make_clip(img, dur, W, H, fps, idx):
-    """이미지 1장 → dur초 클립 (느린 줌 + 페이드)."""
+    """이미지 1장 → dur초 클립. idx로 줌 방향을 다르게, 0번(훅)은 강한 펀치."""
     out = TMP / f"c{idx:02d}.mp4"
-    frames = max(1, int(dur * fps))
-    # 스케일 업 후 zoompan 으로 1.0→1.06 천천히 줌, 페이드 인/아웃
-    zoom = (
+    if idx == 0:
+        zexpr = "min(1.18,1.0+0.0018*on)"        # 훅: 강한 줌인
+    elif idx % 2 == 1:
+        zexpr = "max(1.0,1.10-0.0007*on)"         # 홀수: 줌아웃
+    else:
+        zexpr = "min(1.10,1.0+0.0007*on)"         # 짝수: 줌인
+    vf = (
         f"scale={W*2}:{H*2},"
-        f"zoompan=z='min(zoom+0.0006,1.06)':d={frames}:"
+        f"zoompan=z='{zexpr}':d={max(1,int(dur*fps))}:"
         f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={W}x{H}:fps={fps},"
-        f"fade=t=in:st=0:d=0.3,fade=t=out:st={max(0,dur-0.3):.2f}:d=0.3,"
         f"format=yuv420p"
     )
-    subprocess.run([
-        "ffmpeg", "-y", "-loop", "1", "-i", str(img),
-        "-t", f"{dur:.3f}", "-vf", zoom, "-r", str(fps),
-        "-c:v", "libx264", "-pix_fmt", "yuv420p", str(out)
-    ], check=True, capture_output=True)
+    subprocess.run(["ffmpeg", "-y", "-loop", "1", "-i", str(img),
+        "-t", f"{dur:.3f}", "-vf", vf, "-r", str(fps),
+        "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+        str(out)], check=True, capture_output=True)
     return out
+
+def _audio_args(cfg, has_audio, use_bgm, first_input_index):
+    """오디오 입력/필터 구성. 반환: (extra_inputs, filter_parts, amix_labels, next_index)"""
+    inputs, filt, amix = [], [], []
+    ai = first_input_index
+    if has_audio:
+        inputs += ["-i", str(NARR)]
+        filt.append(f"[{ai}:a]volume=1.0[narr]"); amix.append("[narr]"); ai += 1
+    if use_bgm:
+        inputs += ["-stream_loop", "-1", "-i", str(BGM)]
+        filt.append(f"[{ai}:a]volume={cfg['video'].get('bgm_volume',0.12)}[bgm]"); amix.append("[bgm]"); ai += 1
+    return inputs, filt, amix, ai
+
+def build_xfade(clips, per, cfg, has_audio, use_bgm, W, H, fps):
+    """크로스페이드 전환으로 합성(한 번의 ffmpeg). 실패 시 예외."""
+    n = len(clips)
+    cmd = ["ffmpeg", "-y"]
+    for c in clips:
+        cmd += ["-i", str(c)]
+    ain, afilt, amix, _ = _audio_args(cfg, has_audio, use_bgm, n)
+    cmd += ain
+
+    vf = []
+    prev = "[0:v]"
+    for k in range(1, n):
+        off = k * (per - XFADE)
+        lbl = f"[vx{k}]"
+        vf.append(f"{prev}[{k}:v]xfade=transition=fade:duration={XFADE}:offset={off:.3f}{lbl}")
+        prev = lbl
+    parts = vf + afilt
+    if amix:
+        parts.append(f"{''.join(amix)}amix=inputs={len(amix)}:duration=first:dropout_transition=2[aout]")
+    fc = ";".join(parts)
+    cmd += ["-filter_complex", fc, "-map", prev]
+    if amix:
+        cmd += ["-map", "[aout]", "-c:a", "aac", "-b:a", "192k"]
+    cmd += ["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-r", str(fps), "-movflags", "+faststart"]
+    if has_audio:
+        cmd += ["-shortest"]
+    cmd += [str(OUT)]
+    subprocess.run(cmd, check=True, capture_output=True)
+
+def build_concat(clips, cfg, has_audio, use_bgm, fps):
+    """단순 concat + 재인코딩(폴백, 항상 동작)."""
+    listfile = TMP / "list.txt"
+    listfile.write_text("".join(f"file '{c.name}'\n" for c in clips), encoding="utf-8")
+    common_v = ["-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+                "-r", str(fps), "-vsync", "cfr", "-movflags", "+faststart"]
+    cmd = ["ffmpeg", "-y", "-fflags", "+genpts", "-f", "concat", "-safe", "0", "-i", str(listfile)]
+    ain, afilt, amix, _ = _audio_args(cfg, has_audio, use_bgm, 1)
+    cmd += ain
+    if amix:
+        afilt.append(f"{''.join(amix)}amix=inputs={len(amix)}:duration=first:dropout_transition=2[aout]")
+        cmd += ["-filter_complex", ";".join(afilt), "-map", "0:v", "-map", "[aout]"] + common_v + \
+               ["-c:a", "aac", "-b:a", "192k", "-shortest", str(OUT)]
+    else:
+        cmd += ["-map", "0:v"] + common_v + [str(OUT)]
+    subprocess.run(cmd, check=True, capture_output=True, cwd=str(TMP))
+
+def burn_subtitles(cfg, fps):
+    def has_kfont():
+        try:
+            out = subprocess.check_output(["fc-list"], text=True)
+            return ("nanum" in out.lower()) or ("noto sans cjk" in out.lower())
+        except Exception:
+            return False
+    if not (cfg["video"].get("subtitles", False) and SRT.exists() and has_kfont()):
+        return
+    try:
+        subbed = DATA / "_subbed.mp4"
+        style = ("FontName=NanumGothic,FontSize=44,Bold=1,PrimaryColour=&H00FFFFFF,"
+                 "OutlineColour=&H00151515,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=150")
+        subprocess.run(["ffmpeg", "-y", "-i", str(OUT),
+            "-vf", f"subtitles={SRT.as_posix()}:original_size={cfg['video']['width']}x{cfg['video']['height']}:force_style='{style}'",
+            "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
+            "-r", str(fps), "-movflags", "+faststart", "-c:a", "copy", str(subbed)],
+            check=True, capture_output=True)
+        os.replace(subbed, OUT); log("[video] 자막 번인 완료")
+    except Exception as e:
+        log(f"[video] 자막 번인 건너뜀: {str(e)[:120]}")
 
 def main():
     cfg = load_config()
@@ -53,84 +134,32 @@ def main():
     imgs = sorted(glob.glob(str(SLIDES / "*.png")))
     if not imgs:
         log("[video] no slides!"); return 1
-
     TMP.mkdir(exist_ok=True)
     for f in TMP.glob("*.mp4"):
         f.unlink()
 
     has_audio = NARR.exists() and ffprobe_dur(NARR) > 0.5
     audio_dur = ffprobe_dur(NARR) if has_audio else 0.0
-
-    # 슬라이드별 노출 시간: 내레이션 있으면 거기에 맞춤, 없으면 설정값
+    n = len(imgs)
     if has_audio:
-        total = audio_dur + 0.8
-        per = max(2.0, total / len(imgs))
+        # xfade로 (n-1)*XFADE 만큼 줄어드는 걸 보정해 오디오 길이에 맞춤
+        per = max(2.5, (audio_dur + 0.8 + (n - 1) * XFADE) / n)
     else:
         per = float(v["seconds_per_slide"])
-        total = per * len(imgs)
-    log(f"[video] {len(imgs)} slides, per={per:.2f}s, total≈{per*len(imgs):.1f}s, audio={audio_dur:.1f}s")
+    log(f"[video] {n} slides, per={per:.2f}s, audio={audio_dur:.1f}s")
 
     clips = [make_clip(img, per, W, H, fps, i) for i, img in enumerate(imgs)]
+    use_bgm = bool(v.get("bgm") and BGM.exists())
 
-    # 클립 이어붙이기 목록 (concat demuxer)
-    listfile = TMP / "list.txt"
-    listfile.write_text("".join(f"file '{c.name}'\n" for c in clips), encoding="utf-8")
+    try:
+        build_xfade(clips, per, cfg, has_audio, use_bgm, W, H, fps)
+        log("[video] 크로스페이드 전환 적용")
+    except subprocess.CalledProcessError as e:
+        log("[video] xfade 실패 → concat 폴백: " + (e.stderr.decode()[-300:] if e.stderr else ""))
+        build_concat(clips, cfg, has_audio, use_bgm, fps)
 
-    use_bgm = v.get("bgm") and BGM.exists()
-
-    # ★중요: -c copy 로 이어붙이면 타임스탬프가 깨져 일부 플레이어/유튜브에서
-    #   앞부분만 재생되고 끊긴다. 마지막에 '한 번에 재인코딩'해서 PTS를 새로 만든다.
-    common_v = ["-c:v", "libx264", "-preset", "medium", "-crf", "20",
-                "-pix_fmt", "yuv420p", "-r", str(fps), "-vsync", "cfr",
-                "-video_track_timescale", "90000", "-movflags", "+faststart"]
-
-    cmd = ["ffmpeg", "-y", "-fflags", "+genpts",
-           "-f", "concat", "-safe", "0", "-i", str(listfile)]
-    filt, amix = [], []
-    ai = 1
-    if has_audio:
-        cmd += ["-i", str(NARR)]
-        filt.append(f"[{ai}:a]volume=1.0[narr]"); amix.append("[narr]"); ai += 1
-    if use_bgm:
-        cmd += ["-stream_loop", "-1", "-i", str(BGM)]
-        filt.append(f"[{ai}:a]volume={v.get('bgm_volume',0.12)}[bgm]"); amix.append("[bgm]"); ai += 1
-
-    if amix:
-        filt.append(f"{''.join(amix)}amix=inputs={len(amix)}:duration=first:dropout_transition=2[aout]")
-        cmd += ["-filter_complex", ";".join(filt),
-                "-map", "0:v", "-map", "[aout]"] + common_v + [
-                "-c:a", "aac", "-b:a", "192k", "-shortest", str(OUT)]
-    else:
-        cmd += ["-map", "0:v"] + common_v + [str(OUT)]
-
-    subprocess.run(cmd, check=True, capture_output=True, cwd=str(TMP))
     log(f"[video] wrote {OUT} ({OUT.stat().st_size//1024} KB, {ffprobe_dur(OUT):.1f}s)")
-
-    # (선택) TTS 싱크 자막 번인 — 실패하면 원본을 그대로 유지(파이프라인 안전)
-    def _has_korean_font():
-        try:
-            import subprocess as _sp
-            out = _sp.check_output(["fc-list"], text=True)
-            return ("nanum" in out.lower()) or ("noto sans cjk" in out.lower())
-        except Exception:
-            return False
-    if cfg["video"].get("subtitles", True) and SRT.exists() and _has_korean_font():
-        try:
-            subbed = DATA / "_subbed.mp4"
-            style = ("FontName=NanumGothic,FontSize=54,Bold=1,"
-                     "PrimaryColour=&H00FFFFFF,OutlineColour=&H00151515,"
-                     "BorderStyle=1,Outline=4,Shadow=1,Alignment=2,MarginV=250")
-            subprocess.run([
-                "ffmpeg", "-y", "-i", str(OUT),
-                "-vf", f"subtitles={SRT.as_posix()}:force_style='{style}'",
-                "-c:v", "libx264", "-preset", "medium", "-crf", "20",
-                "-pix_fmt", "yuv420p", "-r", str(fps), "-movflags", "+faststart",
-                "-c:a", "copy", str(subbed)
-            ], check=True, capture_output=True)
-            os.replace(subbed, OUT)
-            log("[video] 자막 번인 완료")
-        except Exception as e:
-            log(f"[video] 자막 번인 건너뜀(원본 유지): {str(e)[:140]}")
+    burn_subtitles(cfg, fps)
     return 0
 
 if __name__ == "__main__":
@@ -140,5 +169,4 @@ if __name__ == "__main__":
         log("[video] ffmpeg error:\n" + (e.stderr.decode()[-1500:] if e.stderr else str(e)))
         sys.exit(1)
     except Exception:
-        traceback.print_exc()
-        sys.exit(1)
+        traceback.print_exc(); sys.exit(1)

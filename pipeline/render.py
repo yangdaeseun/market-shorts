@@ -90,6 +90,17 @@ def build_slides(cfg, data, an):
         "items": [{"cls": "is-pos", "lead_html": html.escape(x.get("name","")),
                    "body": x.get("reason","")} for x in st]})
 
+    # 5.5) 오늘의 핫 종목 스포트라이트
+    hs = an.get("hot_stock", {})
+    if hs.get("name"):
+        slides.append({"type": "spotlight", "img_key": "stocks", "eyebrow": "오늘의 핫 종목", "page": "5",
+            "name": hs.get("name", ""), "tag": hs.get("tag", ""),
+            "rows": [
+                {"k": "촉매",   "v": hs.get("catalyst", "")},
+                {"k": "왜 지금", "v": hs.get("why_now", "")},
+                {"k": "체크",   "v": hs.get("watch", "")},
+            ]})
+
     # 6) 대응 시나리오
     pb = an.get("playbook", {})
     slides.append({"type": "rows", "img_key": "playbook", "eyebrow": "오늘 대응 전략", "page": "5",
@@ -100,13 +111,13 @@ def build_slides(cfg, data, an):
             {"name": "횡보",   "dir": "flat", "rate": "", "price": pb.get("flat","")},
         ]})
 
-    # 7) 리스크 & 오늘 일정
-    risks = an.get("risks", [])[:3]
-    events = an.get("events", [])[:3]
-    items = [{"cls": "is-neg", "lead_html": "⚠ " + html.escape(r), "body": ""} for r in risks]
-    items += [{"cls": "", "lead_html": "📅 " + html.escape(e), "body": ""} for e in events]
-    slides.append({"type": "why", "eyebrow": "리스크 & 오늘 일정", "page": "6",
-        "title_html": "조심 &amp; <span class='em'>체크</span>", "items": items})
+    # 7) 오늘의 호재 & 리스크
+    cats = an.get("catalysts", [])[:2]
+    risks = an.get("risks", [])[:2]
+    items = [{"cls": "is-pos", "lead_html": "🟢 " + html.escape(c), "body": ""} for c in cats]
+    items += [{"cls": "is-neg", "lead_html": "⚠ " + html.escape(r), "body": ""} for r in risks]
+    slides.append({"type": "why", "img_key": "cause", "eyebrow": "오늘의 호재 & 리스크", "page": "6",
+        "title_html": "<span class='em'>호재</span> &amp; 리스크", "items": items})
 
     # 8) 10초 요약 (마무리)
     slides.append({"type": "korea", "img_key": "playbook", "eyebrow": "핵심 요약", "page": "7",

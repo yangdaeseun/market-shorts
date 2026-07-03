@@ -88,6 +88,15 @@
     <div class="impact-stars">{{ slide.stars }}</div>
     <div class="impact-reason">{{ slide.reason }}</div>
   </div>
+{% elif slide.type == "spotlight" %}
+  <div class="eyebrow"><span class="dot"></span>{{ slide.eyebrow }}</div>
+  <div class="page">{{ slide.page }}</div>
+  <div class="spot-name">{{ slide.name }}{% if slide.tag %}<span class="spot-tag">{{ slide.tag }}</span>{% endif %}</div>
+  <div class="spot-rows">
+  {% for r in slide['rows'] %}
+    {% if r.v %}<div class="spot-row"><span class="spot-k">{{ r.k }}</span><span class="spot-v">{{ r.v }}</span></div>{% endif %}
+  {% endfor %}
+  </div>
 {% endif %}
 
   <div class="disclaimer">투자 참고용 · 투자 판단과 책임은 본인에게 있습니다</div>
