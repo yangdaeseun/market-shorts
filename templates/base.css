@@ -118,7 +118,7 @@ body{
 
 
 /* ===== 배경 이미지 (AI 생성) + 가독성 오버레이 ===== */
-.bgimg{position:absolute;inset:0;width:1080px;height:1920px;object-fit:cover;z-index:0;}
+.bgimg{position:absolute;top:0;left:0;width:1080px;height:1920px;object-fit:cover;z-index:0;}
 .bgshade{position:absolute;inset:0;z-index:1;
   background:linear-gradient(180deg,
     rgba(6,10,20,.78) 0%, rgba(6,10,20,.42) 34%,
@@ -160,24 +160,32 @@ body{
 .scene-page{position:absolute;bottom:120px;left:0;right:0;text-align:center;font-size:32px;font-weight:700;color:rgba(255,255,255,.45);z-index:3;letter-spacing:1px;}
 
 /* ===== 리치 인포그래픽 카드 ===== */
-.ic{position:absolute;inset:0;z-index:2;overflow:hidden;--acc-rgb:var(--accent-rgb);
-  background:#0a1120;
-  background:radial-gradient(120% 80% at 78% 8%, rgba(var(--acc-rgb),0.28) 0%, #0a1120 46%, #060a12 100%);}
+.ic{position:absolute;top:0;left:0;width:1080px;height:1920px;z-index:2;overflow:hidden;--acc-rgb:var(--accent-rgb);
+  background:radial-gradient(120% 80% at 78% 8%, rgba(var(--acc-rgb),0.30) 0%, #0a1120 46%, #060a12 100%);}
 .ic.up{--acc-rgb:var(--up-rgb);}
 .ic.down{--acc-rgb:var(--down-rgb);}
 .ic.flat{--acc-rgb:var(--accent-rgb);}
 .ic-glow{position:absolute;top:-160px;right:-140px;width:620px;height:620px;border-radius:50%;
-  background:radial-gradient(circle, rgba(var(--acc-rgb),0.55) 0%, rgba(var(--acc-rgb),0) 70%);filter:blur(18px);opacity:.6;}
-.ic-top{position:absolute;top:64px;left:70px;right:70px;display:flex;justify-content:space-between;
-  font-size:30px;font-weight:700;color:rgba(255,255,255,.5);letter-spacing:1px;}
-.ic-page{color:rgba(255,255,255,.4);}
-.ic-body{position:absolute;left:80px;right:80px;top:300px;}
-.ic-bar{width:130px;height:16px;border-radius:999px;background:rgb(var(--acc-rgb));margin-bottom:44px;box-shadow:0 0 34px rgba(var(--acc-rgb),.9);}
+  background:radial-gradient(circle, rgba(var(--acc-rgb),0.55) 0%, rgba(var(--acc-rgb),0) 70%);}
+.ic-top{position:absolute;top:64px;left:70px;width:940px;font-size:30px;font-weight:700;color:rgba(255,255,255,.5);letter-spacing:1px;}
+.ic-page{float:right;color:rgba(255,255,255,.4);}
+.ic-body{position:absolute;left:80px;width:920px;top:300px;}
+.ic-bar{width:130px;height:16px;border-radius:99px;background:rgb(var(--acc-rgb));margin-bottom:44px;box-shadow:0 0 34px rgba(var(--acc-rgb),.9);}
 .ic-title{font-size:128px;font-weight:900;line-height:1.05;letter-spacing:-2px;color:#fff;text-shadow:0 8px 40px rgba(0,0,0,.5);word-break:keep-all;}
 .ic-sub{margin-top:34px;font-size:60px;font-weight:700;line-height:1.3;color:rgb(var(--acc-rgb));word-break:keep-all;}
 .ic-num{margin-top:40px;font-size:150px;font-weight:900;color:rgb(var(--acc-rgb));line-height:1;}
 .ic-unit{font-size:80px;margin-left:8px;}
-.ic-chart{position:absolute;left:0;right:0;bottom:150px;width:100%;height:420px;opacity:.92;}
-.ic .cline{stroke:rgb(var(--acc-rgb));stroke-width:6;stroke-linejoin:round;stroke-linecap:round;filter:drop-shadow(0 0 12px rgba(var(--acc-rgb),.9));}
+.ic-chart{position:absolute;left:0;bottom:150px;width:1080px;height:420px;}
+.ic .cline{stroke:rgb(var(--acc-rgb));stroke-width:6;fill:none;}
 .ic .cg0{stop-color:rgb(var(--acc-rgb));stop-opacity:.42;}
 .ic .cg1{stop-color:rgb(var(--acc-rgb));stop-opacity:0;}
+/* ===== 이미지 장면(제미나이 이미지 + 하단 글자, 항상 글자) ===== */
+.imgscene{position:absolute;top:0;left:0;width:1080px;height:1920px;z-index:2;--acc-rgb:var(--accent-rgb);}
+.imgscene.up{--acc-rgb:var(--up-rgb);} .imgscene.down{--acc-rgb:var(--down-rgb);} .imgscene.flat{--acc-rgb:var(--accent-rgb);}
+.img-scrim{position:absolute;top:0;left:0;width:1080px;height:1920px;
+  background:linear-gradient(180deg, rgba(6,10,18,.15) 0%, rgba(6,10,18,0) 32%, rgba(6,10,18,.62) 66%, rgba(6,10,18,.95) 100%);}
+.img-top{position:absolute;top:64px;left:70px;width:940px;font-size:30px;font-weight:700;color:rgba(255,255,255,.78);letter-spacing:1px;text-shadow:0 2px 8px rgba(0,0,0,.6);}
+.img-cap{position:absolute;left:80px;width:920px;bottom:230px;}
+.img-cap .ic-bar{width:120px;height:14px;border-radius:99px;background:rgb(var(--acc-rgb));margin-bottom:34px;box-shadow:0 0 26px rgba(var(--acc-rgb),.9);}
+.img-title{font-size:120px;font-weight:900;line-height:1.06;letter-spacing:-2px;color:#fff;text-shadow:0 6px 30px rgba(0,0,0,.85);word-break:keep-all;}
+.img-sub{margin-top:26px;font-size:58px;font-weight:800;color:#fff;text-shadow:0 4px 20px rgba(0,0,0,.9);word-break:keep-all;}

@@ -89,5 +89,5 @@ notify:
 images:
   enabled: true     # 제미나이로 장면별 이미지 생성(유료 결제 필요). 실패 장면은 리치 카드로 대체
   provider: "gemini" # gemini(유료, 완성카드) | auto | pollinations
-  mode: "infographic" # infographic(제미나이 완성카드) | background(배경+오버레이글자)
+  mode: "background"  # background(제미나이=글자없는 그림 + 우리글자 오버레이 → 글자 안 섞임)
   max_images: 8      # 장면 이미지 최대 개수(비용/시간 조절)

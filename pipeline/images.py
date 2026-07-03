@@ -30,29 +30,35 @@ def _seed_base():
     return (int(d) + sum(ord(c) for c in slot) * 101) % 2_000_000
 
 def gemini_image(prompt, out):
-    """제미나이 이미지 생성. 성공 시 True. (google-genai 필요, 키에 이미지 권한 필요)"""
+    """제미나이 이미지 생성. 성공 시 True. 실패 시 예외(원인 로그용)."""
     from google import genai
     from google.genai import types
+    import base64
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"].strip())
     model = os.environ.get("IMAGE_MODEL", "gemini-2.5-flash-image")
-    contents = prompt
-    try:
-        cfg = types.GenerateContentConfig(
-            response_modalities=["IMAGE"],
-            image_config=types.ImageConfig(aspect_ratio="9:16"))
-        r = client.models.generate_content(model=model, contents=contents, config=cfg)
-    except TypeError:
-        r = client.models.generate_content(model=model, contents=contents,
-            config=types.GenerateContentConfig(response_modalities=["IMAGE"]))
-    parts = getattr(r, "parts", None)
-    if not parts:
-        try: parts = r.candidates[0].content.parts
-        except Exception: parts = []
-    for p in parts or []:
-        inl = getattr(p, "inline_data", None)
-        if inl and getattr(inl, "data", None):
-            out.write_bytes(inl.data)
-            return out.stat().st_size > 5000
+    last = None
+    for modal in (["IMAGE"], ["TEXT", "IMAGE"]):
+        try:
+            r = client.models.generate_content(
+                model=model, contents=prompt,
+                config=types.GenerateContentConfig(response_modalities=modal))
+        except Exception as e:
+            last = e; continue
+        cand = (getattr(r, "candidates", None) or [None])[0]
+        parts = (getattr(getattr(cand, "content", None), "parts", None)
+                 or getattr(r, "parts", None) or [])
+        for pt in parts:
+            inl = getattr(pt, "inline_data", None)
+            if inl is not None and getattr(inl, "data", None):
+                data = inl.data
+                if isinstance(data, str):
+                    data = base64.b64decode(data)
+                if data and len(data) > 5000:
+                    out.write_bytes(data)
+                    return True
+        last = RuntimeError("이미지 파트 없음(텍스트만 반환)")
+    if last:
+        raise last
     return False
 
 def pollinations(prompt, out, seed, w=1080, h=1920):

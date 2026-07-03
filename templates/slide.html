@@ -13,7 +13,7 @@
 </head>
 <body class="theme-{{ d.theme }}">
 <div class="stage">
-{% if slide.bg_image %}<img class="bgimg" src="{{ slide.bg_image }}">{% if not slide.is_card %}<div class="bgshade"></div>{% endif %}{% endif %}
+{% if slide.bg_image %}<img class="bgimg" src="{{ slide.bg_image }}">{% endif %}
 
 {% if slide.type == "cover" %}
   <div class="cover-head">{{ slide.eyebrow }}</div>
@@ -100,7 +100,15 @@
   </div>
 {% elif slide.type == "scene" %}
   {% if slide.is_card %}
-  <div class="scene-page">{{ slide.page }}</div>
+  <div class="imgscene {{ 'up' if slide.cdir=='up' else ('down' if slide.cdir=='down' else 'flat') }}">
+    <div class="img-scrim"></div>
+    <div class="img-top">{{ slide.kicker }}<span class="ic-page">{{ slide.page }}</span></div>
+    <div class="img-cap">
+      <div class="ic-bar"></div>
+      <div class="img-title">{{ slide.text }}</div>
+      {% if slide.sub %}<div class="img-sub">{{ slide.sub }}</div>{% endif %}
+    </div>
+  </div>
   {% else %}
   <div class="ic {{ 'up' if slide.cdir=='up' else ('down' if slide.cdir=='down' else 'flat') }}">
     <div class="ic-glow"></div>
