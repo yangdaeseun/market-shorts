@@ -2,10 +2,10 @@ name: daily-market-shorts
 
 on:
   schedule:
-    - cron: "0 21 * * *"   # 06:00 KST  아침 브리핑(morning)
-    - cron: "0 23 * * *"   # 08:00 KST  개장 직전(preopen)
-    - cron: "0 9 * * *"    # 18:00 KST  마감 복기(close)
-    - cron: "0 13 * * *"   # 22:00 KST  미국장 프리뷰(uspreview)
+    - cron: "17 21 * * *"
+    - cron: "17 23 * * *"
+    - cron: "17 9 * * *"
+    - cron: "17 13 * * *"
   workflow_dispatch:
     inputs:
       slot:
@@ -67,6 +67,5 @@ jobs:
           name: market-short-${{ github.run_id }}
           path: |
             data/short.mp4
-            data/slides/*.png
             data/meta.json
           retention-days: 7
