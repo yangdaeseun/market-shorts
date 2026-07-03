@@ -1,60 +1,58 @@
 """
-seo.py — 업로드용 제목/설명/태그/고정댓글 자동 생성. → data/meta.json
-유튜브가 금지하는 홑화살괄호(< >)는 제목·설명에서 완전히 제거한다.
+seo.py — 업로드용 제목/설명/태그/고정댓글 자동 생성 → data/meta.json
+전략 브리핑 스키마 대응. 시간대(slot) 태그로 하루 여러 편도 제목이 구분됨.
+유튜브 금지문자(< >)는 제거.
 """
 import sys, re, datetime, pathlib
-
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from pipeline.util import load_config, log, read_json, write_json, DATA
 
-def strip_tags(s):
-    return re.sub(r"<[^>]+>", "", s or "")
+SLOT_TAG = {"morning":"아침브리핑","preopen":"개장직전","intraday":"장중점검",
+            "close":"마감복기","uspreview":"미국장프리뷰"}
 
-def clean(s):
-    # 태그 제거 + 남은 < > 완전 제거 (유튜브 설명 금지문자)
-    return strip_tags(s).replace("<", "").replace(">", "").strip()
+def strip_tags(s): return re.sub(r"<[^>]+>", "", s or "")
+def clean(s): return strip_tags(s).replace("<","").replace(">","").strip()
 
 def build(cfg, data, an):
     date = data.get("date", datetime.date.today().isoformat())
-    head = clean(an.get("headline_html", an.get("one_liner", "밤사이 증시 요약")))
     prefix = cfg["channel"]["title_prefix"]
+    tag = SLOT_TAG.get(an.get("slot","morning"), "브리핑")
+    hook = clean(an.get("hook", an.get("one_liner", "오늘의 시장 전략")))
 
-    title = f"{prefix} | {head} ({date}) #shorts"
-    title = title.replace("<", "").replace(">", "")[:95]
+    title = f"[{tag}] {hook} | {prefix} ({date}) #shorts"
+    title = clean(title)[:95]
 
-    why_lines = [f"- {clean(w.get('lead',''))}" for w in an.get("why", [])[:5]]
-    ko = an.get("korea", {})
-    fac = an.get("factors", {})
-    neg = [f"- {clean(x)}" for x in fac.get("neg", [])[:3]]
-    pos = [f"- {clean(x)}" for x in fac.get("pos", [])[:3]]
+    c = an.get("cause", {})
+    k = an.get("kr_impact", {})
+    secs = an.get("sectors", [])[:3]
+    st = an.get("stocks", [])[:5]
+    pb = an.get("playbook", {})
 
-    parts = [clean(an.get("one_liner", "")), "",
-             "[ 밤사이 핵심 ]"] + why_lines + [
-             "", f"[ 오늘 한국장 ] {clean(ko.get('line',''))}", clean(ko.get('note',''))]
-    if neg:
-        parts += ["", "[ 악재 ]"] + neg
-    if pos:
-        parts += ["", "[ 호재 ]"] + pos
-    sup = an.get("supports", [])
-    if sup:
-        parts += ["", "[ 지켜야 할 지지선 ]"] + [f"- {clean(x.get('name',''))} {clean(x.get('level',''))} ({clean(x.get('note',''))})" for x in sup[:4]]
-    wl = an.get("watchlist", [])
-    if wl:
-        parts += ["", "[ 주목 종목 ]"] + [f"- {clean(w.get('name',''))}: {clean(w.get('reason',''))}" for w in wl[:3]]
-    vw = an.get("views", {})
-    if vw.get("short") or vw.get("long"):
-        parts += ["", f"[ 관점 ] 단기 · {clean(vw.get('short',''))} / 장기 · {clean(vw.get('long',''))}"]
-    parts += ["", "매일 아침, 밤사이 세계증시를 1분 안에 정리해 드립니다. 구독 부탁드려요!",
-              "", "#증시 #미국증시 #나스닥 #비트코인 #주식 #코스피 #반도체 #경제 #재테크 #shorts",
-              "", "본 영상은 정보 제공 목적이며 투자 권유가 아닙니다."]
-    desc = "\n".join(parts)
-    desc = desc.replace("<", "").replace(">", "")
+    P = [clean(an.get("hook","")), clean(an.get("summary","")), ""]
+    P += [f"[ 원인 ] {clean(c.get('primary',''))} ({clean(c.get('type',''))})",
+          f"[ 국내 영향도 ] {clean(k.get('level',''))} · {clean(k.get('reason',''))}", ""]
+    if secs:
+        P += ["[ 강한 섹터 ]"] + [f"- {clean(x.get('name',''))}: {clean(x.get('reason',''))}" for x in secs] + [""]
+    if st:
+        P += ["[ 관심 종목 ]"] + [f"- {clean(x.get('name',''))}: {clean(x.get('reason',''))}" for x in st] + [""]
+    if pb:
+        P += ["[ 대응 전략 ]",
+              f"- 갭상승: {clean(pb.get('gap_up',''))}",
+              f"- 갭하락: {clean(pb.get('gap_down',''))}",
+              f"- 횡보: {clean(pb.get('flat',''))}", ""]
+    risks = [clean(x) for x in an.get("risks", [])[:3]]
+    events = [clean(x) for x in an.get("events", [])[:3]]
+    if risks: P += ["[ 리스크 ]"] + [f"- {r}" for r in risks] + [""]
+    if events: P += ["[ 오늘 일정 ]"] + [f"- {e}" for e in events] + [""]
+    P += ["매일 장 전, 오늘 대응 전략을 1분으로 정리합니다. 구독하고 놓치지 마세요!",
+          "", "#주식 #증시 #코스피 #미국증시 #나스닥 #반도체 #AI #종목추천 #재테크 #shorts",
+          "", "본 영상은 정보 제공 목적이며 투자 권유가 아닙니다. 투자 판단과 책임은 본인에게 있습니다."]
+    desc = clean("\n".join(P)) if False else "\n".join(P).replace("<","").replace(">","")
 
-    tags = ["증시", "미국증시", "나스닥", "S&P500", "비트코인", "코스피",
-            "주식", "반도체", "경제뉴스", "재테크", "시황", "환율", "금리", "shorts"]
-    pinned = "오늘 시장, 여러분은 어떻게 보시나요? 댓글로 알려주세요!"
-
+    tags = ["주식","증시","코스피","미국증시","나스닥","반도체","AI반도체","HBM",
+            "종목","섹터","시황","증시전망","재테크","경제","shorts"]
+    pinned = "오늘 어떤 종목·섹터 보고 계세요? 댓글로 같이 체크해요!"
     return {"title": title, "description": desc, "tags": tags,
             "pinned_comment": pinned, "privacy": cfg["publish"]["privacy"],
             "category_id": cfg["publish"]["category_id"],

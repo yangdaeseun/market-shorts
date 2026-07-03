@@ -15,6 +15,7 @@ SLIDES = DATA / "slides"
 NARR = DATA / "narration.mp3"
 BGM = ROOT / "assets" / "bgm.mp3"
 OUT = DATA / "short.mp4"
+SRT = DATA / "narration.srt"
 TMP = DATA / "_clips"
 
 def ffprobe_dur(path):
@@ -104,6 +105,25 @@ def main():
 
     subprocess.run(cmd, check=True, capture_output=True, cwd=str(TMP))
     log(f"[video] wrote {OUT} ({OUT.stat().st_size//1024} KB, {ffprobe_dur(OUT):.1f}s)")
+
+    # (선택) TTS 싱크 자막 번인 — 실패하면 원본을 그대로 유지(파이프라인 안전)
+    if cfg["video"].get("subtitles", True) and SRT.exists():
+        try:
+            subbed = DATA / "_subbed.mp4"
+            style = ("FontName=NanumGothic,FontSize=54,Bold=1,"
+                     "PrimaryColour=&H00FFFFFF,OutlineColour=&H00151515,"
+                     "BorderStyle=1,Outline=4,Shadow=1,Alignment=2,MarginV=250")
+            subprocess.run([
+                "ffmpeg", "-y", "-i", str(OUT),
+                "-vf", f"subtitles={SRT.as_posix()}:force_style='{style}'",
+                "-c:v", "libx264", "-preset", "medium", "-crf", "20",
+                "-pix_fmt", "yuv420p", "-r", str(fps), "-movflags", "+faststart",
+                "-c:a", "copy", str(subbed)
+            ], check=True, capture_output=True)
+            os.replace(subbed, OUT)
+            log("[video] 자막 번인 완료")
+        except Exception as e:
+            log(f"[video] 자막 번인 건너뜀(원본 유지): {str(e)[:140]}")
     return 0
 
 if __name__ == "__main__":

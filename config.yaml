@@ -54,6 +54,8 @@ markets:
     "코스피": "^KS11"
     "코스닥": "^KQ11"
   macro:
+    "나스닥선물": "NQ=F"
+    "S&P선물": "ES=F"
     "WTI 유가": "CL=F"
     "금": "GC=F"
     "달러인덱스": "DX-Y.NYB"

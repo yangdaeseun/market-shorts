@@ -1,52 +1,64 @@
 """
-analyze.py — 수집 데이터+헤드라인 → 종합 시황 브리핑(JSON). Gemini 고정 스키마.
-미국/한국/비트 동향·왜·지지선·주목종목·호재/악재·단기·장기 관점 + 슬라이드별 이미지 프롬프트.
+analyze.py — 시장 데이터+뉴스 → 'AI 시장 전략 브리핑'(JSON).
+뉴스 요약이 아니라: 원인 판별 → 국내 영향도 → 섹터/종목 → 대응 시나리오 → 리스크 → 이벤트 → 요약.
+시간대(SLOT)에 따라 역할/대본이 바뀜. 실시간 수급 등 무료로 알 수 없는 수치는 지어내지 않는다.
 오프라인: python pipeline/analyze.py --mock
 """
 import sys, os, json, argparse, pathlib, traceback
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from pipeline.util import load_config, log, read_json, write_json, DATA
+from pipeline import kr_themes
+
+SLOTS = {
+    "morning":   "장 시작 전 · 오늘 대응 브리핑",
+    "preopen":   "개장 직전 · 최종 점검",
+    "intraday":  "장중 · 현재 흐름 점검",
+    "close":     "마감 복기 · 내일 준비",
+    "uspreview": "밤 · 미국장 프리뷰",
+}
+
+def slot_now():
+    return os.environ.get("SLOT", "morning").strip() or "morning"
 
 SCHEMA_HINT = """
-반드시 아래 JSON 하나만 출력. 마크다운/백틱/설명 금지. 숫자는 데이터의 실제 값만, 없는 사실은 지어내지 말 것.
-말은 1.5배 빠르게 재생되니 narration은 '많고 구체적으로'(핵심 빼지 말 것). 지지선은 현재가 기준 합리적 기술적 레벨로 제시.
+아래 JSON 하나만 출력(마크다운/백틱/설명 금지). 숫자는 제공된 실제 데이터만 사용.
+핵심 원칙: 시청자가 "그래서 오늘 뭘 봐야 하는가"를 얻게 하라. 뉴스 나열 금지, '해석과 대응' 중심.
+종목은 제공된 '테마→국내종목 관계도'에서 뉴스와 연관성 높은 것을 우선 선택(관계도 밖이어도 명백히 관련되면 허용).
+장중(intraday) 슬롯이라도 실시간 기관/외국인 수급 '금액'은 알 수 없으니 지어내지 말 것(가격 흐름·뉴스 근거로만 서술).
+매수 권유가 아니라 '정보 제공'. 단정 대신 '가능성/체크'로 표현.
 {
-  "one_liner": "오늘 시장 한 문장(18자내, 임팩트)",
-  "headline_html": "표지 제목, 핵심어 <up>..</up>/<down>..</down> 감쌈(22자내)",
-  "why": [
-    {"dir":"up|down|neutral","lead":"핵심 한 줄(구체적 숫자·종목, 24자내)","body":"원인/전망 부연(30자내)"}
-  ],
-  "supports": [
-    {"name":"나스닥","level":"레벨(예: 20,000)","note":"지지/저항 관건 한 줄(16자내)"},
-    {"name":"코스피","level":"레벨","note":"..."},
-    {"name":"코스닥","level":"레벨","note":"..."},
-    {"name":"비트코인","level":"$레벨","note":"..."}
-  ],
-  "watchlist": [
-    {"name":"종목/섹터","reason":"호재·주목 이유 한 줄(구체적, 26자내)"}
-  ],
-  "factors": {"neg":["악재 한 줄","2~3개"], "pos":["호재 한 줄","2~3개"]},
-  "views": {"short":"단기 관점 한 줄(24자내)","long":"장기 관점 한 줄(24자내)"},
-  "korea": {"line":"오늘·내일 한국장 전망(24자내)","note":"이유·수급 한 줄(30자내)"},
+  "hook": "3초 훅 — 오늘 가장 중요한 한 가지(16자내, 강렬하게)",
+  "headline_html": "표지 제목, 핵심어 <up>..</up>/<down>..</down>(20자내)",
+  "one_liner": "한 문장 요약(18자내)",
+  "cause": {"primary":"가장 큰 원인(예: AI 투자 확대)","type":"AI투자|실적|금리|정책|옵션만기|숏커버|기관매수|유가|환율|기타","detail":"부연 한 줄(28자내)"},
+  "kr_impact": {"level":"상|중|하","stars":4,"reason":"그 영향도인 이유 한 줄(26자내)"},
+  "sectors": [{"name":"섹터명","dir":"up|down","reason":"이유 한 줄(22자내)"}],
+  "stocks":  [{"name":"종목명","reason":"주목 이유(구체적,24자내)"}],
+  "playbook": {"gap_up":"갭상승 시 대응(22자내)","gap_down":"갭하락 시 대응(22자내)","flat":"횡보 시 대응(22자내)"},
+  "risks":  ["오늘 조심할 리스크 한 줄","2~3개"],
+  "events": ["오늘 확인할 이벤트(지표/실적/정책) 한 줄","2~3개"],
+  "summary": "10초 핵심 요약(한 문장, 기억에 남게, 26자내)",
   "images": {
-    "cover":"표지 배경 영어 프롬프트(오늘 시장 상징, 글자 없이)",
-    "why":"'왜 움직였나' 영어 프롬프트(원인 상징)",
-    "supports":"지지선/차트 영어 프롬프트(캔들차트, 지지선, 상승/하락 화살표)",
-    "watch":"주목 종목 영어 프롬프트(spotlight on rising stocks/sector)",
-    "factors":"호재 vs 악재 대결 영어 프롬프트(불타는 혼돈 vs 푸른 성장의 빛)",
-    "korea":"한국 증시 영어 프롬프트(코스피/서울 상징)"
+    "hook":"표지 배경 영어 프롬프트(오늘 핵심 상징, 글자 없이)",
+    "cause":"원인 상징 영어 프롬프트",
+    "sectors":"오늘 강한 섹터 상징 영어 프롬프트",
+    "stocks":"주목 종목/스포트라이트 영어 프롬프트",
+    "playbook":"대응 전략/시나리오 상징 영어 프롬프트(갈림길, 화살표)"
   },
-  "narration": "아나운서 대본. 첫 문장 아주 짧고 강하게. 이어 구체적으로: (1)미국-무엇이 왜+단기전망, (2)한국-코스피/코스닥 원인+내일, (3)비트코인 원인, (4)지지선-지켜야 할 레벨, (5)주목 종목/호재, (6)호재와 악재 종합, (7)단기·장기 관점+주요 일정(고용지표 등), (8)한 줄 마무리. 빠른 호흡, 숫자 포함, 460~520자."
+  "narration": "아나운서 대본. 1.5배속 재생 고려해 빠르고 구체적으로. 순서: (1)3초 훅 강하게 (2)무슨 일+원인 판별 (3)국내 영향도와 이유 (4)오늘 강한 섹터 (5)먼저 볼 종목과 이유 (6)갭상승/갭하락/횡보 대응 (7)조심할 리스크 (8)오늘 이벤트 (9)한 문장 요약. 440~520자."
 }
-why 4~5개, supports 3~4개, watchlist 2~3개. images는 영어, 글자 안 들어가게.
+sectors 3개, stocks 5개, risks/events 2~3개.
 """
 
-def build_prompt(data):
-    return ("너는 한국 시청자용 글로벌 증시 숏츠의 시황 애널리스트다. "
-            "아래 밤사이 데이터와 헤드라인으로 미국/한국/비트코인의 '왜 움직였는지'와 "
-            "지지선·주목 종목·호재/악재·단기·장기 관점을 종합하라.\n\n"
-            f"[데이터]\n{json.dumps(data, ensure_ascii=False)}\n\n" + SCHEMA_HINT)
+def build_prompt(data, slot):
+    heads = data.get("headlines", [])
+    themap = kr_themes.context_block(heads)
+    label = SLOTS.get(slot, SLOTS["morning"])
+    return (f"너는 한국 주식 시청자용 '전략 숏츠'의 애널리스트다. 지금 시간대 역할: [{label}].\n"
+            "밤사이/최근 글로벌·국내 데이터와 뉴스로 오늘의 '대응 전략'을 만든다.\n\n"
+            f"[데이터]\n{json.dumps(data, ensure_ascii=False)}\n\n"
+            f"[{themap}]\n\n" + SCHEMA_HINT)
 
 def call_gemini(prompt):
     import google.generativeai as genai
@@ -66,66 +78,69 @@ def call_gemini(prompt):
             last = e; log(f"[analyze] model {name} 실패: {e}")
     raise last if last else RuntimeError("no model")
 
-def mock(data):
+def mock(data, slot):
     return {
-        "one_liner": "AI·반도체 차익실현에 조정",
-        "headline_html": "반도체가 끌어내린 <down>글로벌 증시</down>",
-        "why": [
-            {"dir":"down","lead":"나스닥 하락, 반도체가 주도","body":"빅테크 AI 투자 속도조절 우려"},
-            {"dir":"down","lead":"마이크론·AMD 급락","body":"차익실현 매물 집중"},
-            {"dir":"down","lead":"코스피·코스닥 동반 약세","body":"미 반도체 여파+외국인 매도"},
-            {"dir":"neutral","lead":"국채금리는 안정","body":"물가 둔화로 하방 압력"},
+        "hook": "AI 반도체, 오늘 국내가 받는다",
+        "headline_html": "엔비디아 급등에 <up>반도체 순환</up>",
+        "one_liner": "밤사이 AI 수요 재확인",
+        "cause": {"primary":"AI 데이터센터 투자 확대", "type":"AI투자",
+                  "detail":"엔비디아 대형 계약+ETF 자금 유입"},
+        "kr_impact": {"level":"상","stars":5,"reason":"HBM·전력 국내 밸류체인 직접 수혜"},
+        "sectors": [
+            {"name":"AI반도체","dir":"up","reason":"엔비디아 계약에 수요 재확인"},
+            {"name":"전력기기","dir":"up","reason":"데이터센터 전력수요 급증"},
+            {"name":"PCB·기판","dir":"up","reason":"AI 가속기 고다층 기판 수혜"},
         ],
-        "supports": [
-            {"name":"나스닥","level":"20,000","note":"이 선 지지 관건"},
-            {"name":"코스피","level":"2,550","note":"단기 지지선"},
-            {"name":"코스닥","level":"720","note":"수급 분수령"},
-            {"name":"비트코인","level":"$58,000","note":"지지 실패 시 조정 확대"},
+        "stocks": [
+            {"name":"SK하이닉스","reason":"HBM 공급 사실상 독점적 지위"},
+            {"name":"한미반도체","reason":"HBM 본딩 장비 핵심 수혜"},
+            {"name":"이수페타시스","reason":"AI용 고다층 PCB 수요 급증"},
+            {"name":"제룡전기","reason":"데이터센터·전력망 투자 수혜"},
+            {"name":"두산에너빌리티","reason":"AI 전력원 원전·SMR 기대"},
         ],
-        "watchlist": [
-            {"name":"HBM 메모리주","reason":"AI 수요 장기 성장 지속"},
-            {"name":"전력기기·원전","reason":"AI 인프라 전력수요 수혜"},
-            {"name":"방산","reason":"지정학 리스크 수혜 기대"},
-        ],
-        "factors": {
-            "neg":["빅테크 AI 투자 속도조절·반도체 급락","비트코인 고래 매도·ETF 유입 둔화","미 제조업 지표 둔화"],
-            "pos":["인플레이션 둔화·금리 안정","AI·반도체 장기 성장성","연준 금리 인하 기대"]
+        "playbook": {
+            "gap_up":"4% 이상 갭상승 시 추격보다 눌림목 확인",
+            "gap_down":"갭하락은 대장주 위주 분할 관점",
+            "flat":"횡보 시 거래량 실린 주도주만 대응",
         },
-        "views": {"short":"단기 변동성 큰 조정 국면","long":"AI 장기 사이클은 유효"},
-        "korea": {"line":"내일 매물 소화 후 반등 시도","note":"외국인 매도 진정 여부가 관건"},
+        "risks": ["환율 급등 시 외국인 매도 부담", "옵션만기 주간 변동성 확대", "단기 급등 종목 차익실현"],
+        "events": ["밤 미국 고용지표 발표", "SK하이닉스 실적 시즌 임박", "원/달러 환율 방향"],
+        "summary": "오늘 키워드는 AI 반도체 순환매",
         "images": {
-            "cover":"dramatic cinematic illustration, glowing AI accelerator chip cracking with red fissures, NASDAQ red crash arrows, dark blue red neon, vertical",
-            "why":"cinematic semiconductor wafers and AI server racks with red downward arrows, profit-taking selloff, moody dark tech, vertical",
-            "supports":"cinematic glowing candlestick stock chart with clear horizontal support line and red down arrows, financial trading screen, vertical",
-            "watch":"cinematic spotlight on a few rising green stock tickers, HBM memory chip and power grid and defense icons glowing, hopeful, vertical",
-            "factors":"epic split composition, left fiery chaotic monster of collapsing chips and red arrows, right serene blue-green guardian of growth and rising sun, vertical",
-            "korea":"cinematic Seoul financial district at dusk, huge KOSPI ticker board red with falling arrows, foreign selloff tension, vertical"
+            "hook":"cinematic glowing AI GPU chip with green up arrows exploding, Korean semiconductor city skyline behind, dramatic, vertical",
+            "cause":"cinematic massive AI data center servers glowing, capital flowing in as light streams, vertical",
+            "sectors":"cinematic three glowing pillars labeled by light: chips, power grid, circuit board, rising, vertical",
+            "stocks":"cinematic spotlight on rising Korean tech stock tickers, HBM chip and transformer icons glowing green, vertical",
+            "playbook":"cinematic crossroads with three glowing arrows up steep, down, flat, strategy map, vertical",
         },
-        "narration": ("오늘, 반도체가 무너졌습니다. "
-            "밤사이 미국은 빅테크 AI 투자 속도조절 우려에 마이크론과 AMD 등 반도체주가 급락하며 나스닥이 하락을 주도했습니다. "
-            "단기적으론 낙폭 과대 저가매수가 들어오는지가 관건입니다. "
-            "한국도 여파로 코스피와 코스닥이 동반 약세, 외국인 매도가 컸지만 개인·기관이 받아냈습니다. 내일은 매물 소화 흐름이 예상됩니다. "
-            "비트코인은 고래 매도와 유동성 둔화로 지지선을 시험 중입니다. "
-            "지켜야 할 선은 나스닥 2만, 코스피 2천5백50, 코스닥 720, 비트코인 5만8천 달러입니다. "
-            "주목할 곳은 HBM 메모리, 전력기기·원전, 방산입니다. "
-            "악재는 반도체 차익실현과 ETF 유입 둔화, 호재는 금리 안정과 AI 장기 성장성입니다. "
-            "단기는 변동성 조정, 장기는 AI 사이클 유효. 이번 주 미국 고용지표를 주목하세요. "
-            "지지선 지키는지 보며 성투하세요.")
+        "narration": ("오늘, AI 반도체가 국내로 넘어옵니다. "
+            "밤사이 엔비디아가 대형 데이터센터 계약 발표 이후 급등했고, 관련 ETF에 기관 자금이 대거 유입됐습니다. 원인은 실적이 아니라 AI 투자 확대입니다. "
+            "국내 영향도는 별 다섯. HBM과 전력 밸류체인이 직접 수혜기 때문입니다. "
+            "오늘 강한 섹터는 AI 반도체, 전력기기, PCB 기판. "
+            "먼저 볼 종목은 SK하이닉스, 한미반도체, 이수페타시스, 제룡전기, 두산에너빌리티입니다. HBM 독점과 전력 수요가 이유입니다. "
+            "대응은, 4퍼센트 이상 갭상승이면 추격보다 눌림목 확인, 갭하락이면 대장주 분할 관점, 횡보면 거래량 실린 주도주만. "
+            "조심할 건 환율 급등과 옵션만기 변동성입니다. "
+            "오늘은 미국 고용지표와 환율 방향을 체크하세요. "
+            "한 줄 요약, 오늘은 AI 반도체 순환매입니다.")
     }
 
 def main():
     ap = argparse.ArgumentParser(); ap.add_argument("--mock", action="store_true")
     args = ap.parse_args(); cfg = load_config()
     data = read_json(DATA / "data.json")
+    slot = slot_now()
+    log(f"[analyze] SLOT = {slot} ({SLOTS.get(slot,'?')})")
     if args.mock or not os.environ.get("GEMINI_API_KEY"):
-        log("[analyze] MOCK/no-key mode"); result = mock(data)
+        log("[analyze] MOCK/no-key mode"); result = mock(data, slot)
     else:
         try:
-            result = call_gemini(build_prompt(data))
+            result = call_gemini(build_prompt(data, slot))
         except Exception as e:
-            log(f"[analyze] Gemini 실패 → mock ({e})"); result = mock(data)
+            log(f"[analyze] Gemini 실패 → mock ({e})"); result = mock(data, slot)
+    result["slot"] = slot
+    result["slot_label"] = SLOTS.get(slot, SLOTS["morning"])
     write_json(DATA / "analysis.json", result)
-    log(f"[analyze] one_liner = {result.get('one_liner')}")
+    log(f"[analyze] hook = {result.get('hook')}")
     return 0
 
 if __name__ == "__main__":

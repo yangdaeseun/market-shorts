@@ -88,8 +88,12 @@ def mock():
             "S&P 500": {"ticker": "^GSPC", "price": 6321.4, "pct": 1.12},
             "나스닥": {"ticker": "^IXIC", "price": 20890.3, "pct": 1.84},
             "다우": {"ticker": "^DJI", "price": 43210.7, "pct": -0.21},
+            "코스피": {"ticker": "^KS11", "price": 2555.3, "pct": -1.2},
+            "코스닥": {"ticker": "^KQ11", "price": 728.4, "pct": -0.9},
         },
         "macro": {
+            "나스닥선물": {"ticker": "NQ=F", "price": 25990.0, "pct": 0.42},
+            "S&P선물": {"ticker": "ES=F", "price": 7510.0, "pct": 0.31},
             "WTI 유가": {"ticker": "CL=F", "price": 72.4, "pct": 2.6},
             "금": {"ticker": "GC=F", "price": 2655.1, "pct": 0.4},
             "달러인덱스": {"ticker": "DX-Y.NYB", "price": 104.8, "pct": -0.3},

@@ -130,3 +130,11 @@ body{
 .why.is-pos::before{background:#22C55E;}
 
 .disclaimer{position:absolute;left:0;right:0;bottom:34px;text-align:center;font-size:26px;font-weight:500;color:rgba(255,255,255,.55);letter-spacing:.3px;z-index:3;}
+
+.impact-wrap{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:34px;margin-top:120px;}
+.impact-level{font-size:150px;font-weight:900;line-height:1;padding:20px 70px;border-radius:44px;}
+.level-상{color:#fff;background:linear-gradient(135deg,#F04452,#B91C1C);}
+.level-중{color:#fff;background:linear-gradient(135deg,#F59E0B,#B45309);}
+.level-하{color:#fff;background:linear-gradient(135deg,#3182F6,#1E40AF);}
+.impact-stars{font-size:110px;letter-spacing:12px;color:#FFD34E;text-shadow:0 4px 20px rgba(255,180,0,.35);}
+.impact-reason{font-size:46px;font-weight:600;color:rgba(255,255,255,.9);text-align:center;max-width:900px;line-height:1.35;}
