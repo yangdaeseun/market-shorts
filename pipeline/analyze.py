@@ -72,7 +72,10 @@ def build_prompt(data, slot, plan, events=None):
     return (f"너는 한국 주식 시청자용 '전략 숏츠'의 애널리스트다. 지금 시간대 역할: [{label}].\n"
             + angle +
             "밤사이/최근 글로벌·국내 데이터와 뉴스로 오늘의 '대응 전략'을 만든다. 뉴스 나열 금지, 앵글 중심.\n"
-            "특히 '지금 시청자가 가장 관심 가질 종목과 그 이유'를 구체적으로 짚어라.\n\n"
+            "특히 '지금 시청자가 가장 관심 가질 종목과 그 이유'를 구체적으로 짚어라.\n"
+            f"데이터 기준: {data.get('captured_at','')} · {data.get('market_phase','')}. "
+            "제공된 수치만 사용하고, 데이터에 없는 실시간 급등락(예: 장중 +10%)은 단정하지 말 것. "
+            "수치를 말할 땐 이 '기준 시점'에 맞게 표현하라(밤사이/장중/마감).\n\n"
             f"[데이터]\n{json.dumps(data, ensure_ascii=False)}\n\n"
             f"[{themap}]\n" + evtxt + "\n\n" + SCHEMA_HINT)
 
