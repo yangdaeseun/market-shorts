@@ -112,6 +112,12 @@ def main():
         k = sl.get("img_key")
         if k and (DATA / "images" / f"{k}.png").exists():
             sl["bg_image"] = f"images/{k}.png"
+    try:
+        cards = set(read_json(DATA / "images" / "_cards.json").get("cards", []))
+    except Exception:
+        cards = set()
+    for sl in slides:
+        sl["is_card"] = sl.get("idx") in cards and bool(sl.get("bg_image"))
     write_json(DATA / "slides_meta.json", slides)
     ac, bg = theme_palette(an.get("theme", ""))
     d = dict(cfg["design"]); d["accent"] = ac; d["bg"] = bg

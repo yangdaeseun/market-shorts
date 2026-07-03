@@ -12,7 +12,7 @@
 </head>
 <body class="theme-{{ d.theme }}">
 <div class="stage">
-{% if slide.bg_image %}<img class="bgimg" src="{{ slide.bg_image }}"><div class="bgshade"></div>{% endif %}
+{% if slide.bg_image %}<img class="bgimg" src="{{ slide.bg_image }}">{% if not slide.is_card %}<div class="bgshade"></div>{% endif %}{% endif %}
 
 {% if slide.type == "cover" %}
   <div class="cover-head">{{ slide.eyebrow }}</div>
@@ -98,6 +98,9 @@
   {% endfor %}
   </div>
 {% elif slide.type == "scene" %}
+  {% if slide.is_card %}
+  <div class="scene-page">{{ slide.page }}</div>
+  {% else %}
   <div class="scene-kicker">{{ slide.kicker }}</div>
   <div class="scene-wrap {{ 'up' if slide.cdir=='up' else ('down' if slide.cdir=='down' else '') }}">
     <div class="scene-bar"></div>
@@ -105,6 +108,7 @@
     {% if slide.sub %}<div class="scene-sub">{{ slide.sub }}</div>{% endif %}
   </div>
   <div class="scene-page">{{ slide.page }}</div>
+  {% endif %}
 {% endif %}
 
   <div class="disclaimer">투자 참고용 · 투자 판단과 책임은 본인에게 있습니다</div>

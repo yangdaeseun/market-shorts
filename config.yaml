@@ -89,4 +89,5 @@ notify:
 images:
   enabled: true
   provider: "auto"   # auto(제미나이→폴백) | gemini | pollinations
+  mode: "infographic" # infographic(제미나이 완성카드) | background(배경+오버레이글자)
   max_images: 8      # 장면 이미지 최대 개수(비용/시간 조절)

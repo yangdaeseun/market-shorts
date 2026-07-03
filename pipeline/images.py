@@ -12,10 +12,17 @@ from pipeline.util import load_config, log, read_json, DATA
 
 IMG = DATA / "images"
 
-STYLE = (", bold editorial infographic illustration, financial news key visual, "
-         "vibrant cinematic colors, dramatic lighting, deep navy background, "
-         "clean vector-3d style, high detail, vertical 9:16 composition, "
-         "absolutely no text, no words, no letters, no numbers, no watermark")
+# 배경용(글자 없이) — 폴백/무료 이미지
+STYLE_BG = (", bold editorial illustration, financial key visual, vibrant cinematic colors, "
+            "deep navy background, high detail, vertical 9:16, no text, no letters, no watermark")
+
+def card_prompt(t, s, theme):
+    """제미나이 이미지 모델용: 글자·아이콘 다 넣은 완성 인포그래픽 카드 프롬프트."""
+    return (f"세로 9:16 한국 주식 유튜브용 프리미엄 인포그래픽 카드 이미지. "
+            f"큰 한국어 제목: '{t}'. 부제: '{s}'. 주제: {theme}. "
+            f"주제에 맞는 3D 아이콘·차트·화살표(상승 초록/하락 빨강)를 배치. "
+            f"짙은 네이비 배경, 선명하고 고급스러운 색감, 프로페셔널 금융 뉴스 그래픽 스타일. "
+            f"한국어 글자를 또렷하고 정확하게, 오타 없이 렌더링. 워터마크 없음.")
 
 def _seed_base():
     d = (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime("%Y%m%d")
@@ -28,7 +35,7 @@ def gemini_image(prompt, out):
     from google.genai import types
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"].strip())
     model = os.environ.get("IMAGE_MODEL", "gemini-2.5-flash-image")
-    contents = prompt + STYLE
+    contents = prompt
     try:
         cfg = types.GenerateContentConfig(
             response_modalities=["IMAGE"],
@@ -50,7 +57,7 @@ def gemini_image(prompt, out):
 
 def pollinations(prompt, out, seed, w=1080, h=1920):
     import time
-    q = urllib.parse.quote(prompt + STYLE)
+    q = urllib.parse.quote(prompt + STYLE_BG)
     urls = [
         f"https://image.pollinations.ai/prompt/{q}?width={w}&height={h}&nologo=true&enhance=true&model=flux&seed={seed}",
         f"https://image.pollinations.ai/prompt/{q}?width={w}&height={h}&nologo=true&model=flux&seed={seed+37}",
@@ -69,45 +76,47 @@ def pollinations(prompt, out, seed, w=1080, h=1920):
 
 def main():
     cfg = load_config()
-    if not cfg.get("images", {}).get("enabled", True):
+    icfg = cfg.get("images", {})
+    if not icfg.get("enabled", True):
         log("[images] disabled, skip"); return 0
-    provider = cfg.get("images", {}).get("provider", "auto")  # auto|gemini|pollinations
+    provider = icfg.get("provider", "auto")   # auto|gemini|pollinations
+    mode = icfg.get("mode", "infographic")     # infographic|background
+    mx = int(icfg.get("max_images", 8))
     an = read_json(DATA / "analysis.json")
+    theme = an.get("theme", "증시")
     scenes = an.get("scenes", [])
-    mx = int(cfg.get("images", {}).get("max_images", 8))
-    jobs = [(i, sc.get("v", "")) for i, sc in enumerate(scenes) if sc.get("v")][:mx]
+    jobs = [(i, sc) for i, sc in enumerate(scenes) if sc.get("v") or sc.get("t")][:mx]
     if not jobs:
-        jobs = list(enumerate(an.get("images", {}).values()))
-    if not jobs:
-        log("[images] no prompts, skip"); return 0
+        log("[images] no scenes, skip"); return 0
     IMG.mkdir(exist_ok=True)
     for f in IMG.glob("*.png"):
         f.unlink()
     base = _seed_base()
     have_key = bool(os.environ.get("GEMINI_API_KEY"))
-    okc = 0
-    for i, prompt in jobs:
-        if not prompt:
-            continue
+    cards, okc = [], 0
+    for i, sc in jobs:
         out = IMG / f"s{i}.png"
         ok = False
+        # 1순위: 제미나이 완성 카드
         if provider in ("auto", "gemini") and have_key:
             try:
-                ok = gemini_image(prompt, out)
-                if ok: log(f"[images] s{i}: 제미나이 OK ({prompt[:28]})")
+                if mode == "infographic":
+                    ok = gemini_image(card_prompt(sc.get("t",""), sc.get("s",""), theme), out)
+                else:
+                    ok = gemini_image((sc.get("v","") or sc.get("t","")) + STYLE_BG, out)
+                if ok:
+                    if mode == "infographic":
+                        cards.append(i)
+                    log(f"[images] s{i}: 제미나이 OK")
             except Exception as e:
-                log(f"[images] s{i}: 제미나이 실패 → 폴백 ({str(e)[:80]})")
+                log(f"[images] s{i}: 제미나이 실패 → 폴백 ({str(e)[:70]})")
+        # 2순위: 무료 배경(글자 없음)
         if not ok and provider in ("auto", "pollinations"):
-            ok = pollinations(prompt, out, (base + i * 1301) % 2_000_000)
-            if ok: log(f"[images] s{i}: pollinations OK")
-        if not ok:
-            log(f"[images] s{i}: 생성 실패(스킵)")
+            ok = pollinations(sc.get("v","") or sc.get("t",""), out, (base + i*1301) % 2_000_000)
+            if ok: log(f"[images] s{i}: pollinations 배경 OK")
         okc += 1 if ok else 0
-    log(f"[images] 완료 {okc}/{len(jobs)}")
+    # 완성 카드가 만들어진 장면 기록(render가 오버레이 글자 숨김)
+    write_cards = {"cards": cards}
+    (IMG / "_cards.json").write_text(__import__("json").dumps(write_cards), encoding="utf-8")
+    log(f"[images] 완료 {okc}/{len(jobs)} (완성카드 {len(cards)}장)")
     return 0
-
-if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except Exception:
-        traceback.print_exc(); sys.exit(0)

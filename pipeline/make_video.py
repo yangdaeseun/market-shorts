@@ -29,11 +29,19 @@ def ffprobe_dur(path):
     except Exception:
         return 0.0
 
-def make_clip(img, dur, W, H, fps, idx, bar=0, cdir="", num="", unit=""):
+def make_clip(img, dur, W, H, fps, idx, bar=0, cdir="", num="", unit="", is_card=False):
     """이미지 1장 → dur초 클립. idx로 줌 방향을 다르게, 0번(훅)은 강한 펀치."""
     out = TMP / f"c{idx:02d}.mp4"
     d = max(1, int(dur * fps))
     cx = "iw/2-(iw/zoom/2)"; cy = "ih/2-(ih/zoom/2)"
+    if is_card:
+        # 완성 인포그래픽 카드: 잔잔한 줌만(겉도는 효과 없음)
+        z = "min(1.06,1.0+0.0004*on)"; x = cx; y = cy
+        vf = (f"scale={W*2}:{H*2},zoompan=z='{z}':d={d}:x='{x}':y='{y}':s={W}x{H}:fps={fps},format=yuv420p")
+        subprocess.run(["ffmpeg","-y","-loop","1","-i",str(img),"-t",f"{dur:.3f}","-vf",vf,"-r",str(fps),
+                        "-c:v","libx264","-preset","medium","-crf","20","-pix_fmt","yuv420p",str(out)],
+                       check=True, capture_output=True)
+        return out
     mode = idx % 4
     if idx == 0:                                   # 훅: 강한 줌인 펀치
         z, x, y = f"min(1.22,1.0+0.0020*on)", cx, cy
@@ -206,7 +214,7 @@ def main():
         try: return meta[i]
         except Exception: return {}
     clips = [make_clip(img, durs[i], W, H, fps, i, _m(i).get("bar", 0), _m(i).get("cdir", ""),
-                       _m(i).get("n", ""), _m(i).get("unit", ""))
+                       _m(i).get("n", ""), _m(i).get("unit", ""), _m(i).get("is_card", False))
              for i, img in enumerate(imgs)]
     use_bgm = bool(v.get("bgm") and BGM.exists())
 
