@@ -71,22 +71,20 @@ def main():
 
     clips = [make_clip(img, per, W, H, fps, i) for i, img in enumerate(imgs)]
 
-    # 클립 이어붙이기 (concat demuxer)
+    # 클립 이어붙이기 목록 (concat demuxer)
     listfile = TMP / "list.txt"
     listfile.write_text("".join(f"file '{c.name}'\n" for c in clips), encoding="utf-8")
-    silent = DATA / "_silent.mp4"
-    subprocess.run([
-        "ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(listfile),
-        "-c", "copy", str(silent)
-    ], check=True, capture_output=True, cwd=str(TMP))
 
-    # 오디오 믹스
     use_bgm = v.get("bgm") and BGM.exists()
-    if not has_audio and not use_bgm:
-        os.replace(silent, OUT)
-        log(f"[video] (무음) wrote {OUT}"); return 0
 
-    cmd = ["ffmpeg", "-y", "-i", str(silent)]
+    # ★중요: -c copy 로 이어붙이면 타임스탬프가 깨져 일부 플레이어/유튜브에서
+    #   앞부분만 재생되고 끊긴다. 마지막에 '한 번에 재인코딩'해서 PTS를 새로 만든다.
+    common_v = ["-c:v", "libx264", "-preset", "medium", "-crf", "20",
+                "-pix_fmt", "yuv420p", "-r", str(fps), "-vsync", "cfr",
+                "-video_track_timescale", "90000", "-movflags", "+faststart"]
+
+    cmd = ["ffmpeg", "-y", "-fflags", "+genpts",
+           "-f", "concat", "-safe", "0", "-i", str(listfile)]
     filt, amix = [], []
     ai = 1
     if has_audio:
@@ -95,12 +93,16 @@ def main():
     if use_bgm:
         cmd += ["-stream_loop", "-1", "-i", str(BGM)]
         filt.append(f"[{ai}:a]volume={v.get('bgm_volume',0.12)}[bgm]"); amix.append("[bgm]"); ai += 1
-    filt.append(f"{''.join(amix)}amix=inputs={len(amix)}:duration=first:dropout_transition=2[aout]")
-    cmd += ["-filter_complex", ";".join(filt),
-            "-map", "0:v", "-map", "[aout]",
-            "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-            "-shortest", str(OUT)]
-    subprocess.run(cmd, check=True, capture_output=True)
+
+    if amix:
+        filt.append(f"{''.join(amix)}amix=inputs={len(amix)}:duration=first:dropout_transition=2[aout]")
+        cmd += ["-filter_complex", ";".join(filt),
+                "-map", "0:v", "-map", "[aout]"] + common_v + [
+                "-c:a", "aac", "-b:a", "192k", "-shortest", str(OUT)]
+    else:
+        cmd += ["-map", "0:v"] + common_v + [str(OUT)]
+
+    subprocess.run(cmd, check=True, capture_output=True, cwd=str(TMP))
     log(f"[video] wrote {OUT} ({OUT.stat().st_size//1024} KB, {ffprobe_dur(OUT):.1f}s)")
     return 0
 
