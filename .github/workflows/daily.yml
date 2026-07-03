@@ -2,10 +2,11 @@ name: daily-market-shorts
 
 on:
   schedule:
-    - cron: "17 21 * * *"
-    - cron: "17 23 * * *"
-    - cron: "17 9 * * *"
-    - cron: "17 13 * * *"
+    # GitHub 예약은 정각(:00)을 자주 지연/누락시켜서 :17분으로 설정(더 안정적)
+    - cron: "17 21 * * *"   # 06:17 KST  아침 브리핑(morning)
+    - cron: "17 23 * * *"   # 08:17 KST  개장 직전(preopen)
+    - cron: "17 9 * * *"    # 18:17 KST  마감 복기(close)
+    - cron: "17 13 * * *"   # 22:17 KST  미국장 프리뷰(uspreview)
   workflow_dispatch:
     inputs:
       slot:
