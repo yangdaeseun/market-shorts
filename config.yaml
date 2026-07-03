@@ -27,7 +27,7 @@ video:
   bgm: true                 # assets/bgm.mp3 있으면 자동 삽입
   bgm_volume: 0.12
   voiceover: true           # 자동 더빙(edge-tts 무료). 끄려면 false
-  subtitles: false        # 번인 자막(슬라이드에 이미 글자가 있어 겹침 방지로 off)
+  subtitles: true         # CapCut식 하단 자막(장면 글씨는 중앙, 자막은 하단)
 
 # 음성 (무료 기본 = edge-tts. ElevenLabs 쓰려면 voice.provider 변경)
 voice:

@@ -16,6 +16,10 @@ BGM = ROOT / "assets" / "bgm.mp3"
 OUT = DATA / "short.mp4"
 TMP = DATA / "_clips"
 XFADE = 0.5  # 전환 시간(초)
+FONTFILE = next((p for p in [
+    "/usr/share/fonts/truetype/nanum/NanumGothicBold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+] if os.path.exists(p)), None)
 
 def ffprobe_dur(path):
     try:
@@ -25,21 +29,60 @@ def ffprobe_dur(path):
     except Exception:
         return 0.0
 
-def make_clip(img, dur, W, H, fps, idx):
+def make_clip(img, dur, W, H, fps, idx, bar=0, cdir="", num="", unit=""):
     """이미지 1장 → dur초 클립. idx로 줌 방향을 다르게, 0번(훅)은 강한 펀치."""
     out = TMP / f"c{idx:02d}.mp4"
-    if idx == 0:
-        zexpr = "min(1.18,1.0+0.0018*on)"        # 훅: 강한 줌인
-    elif idx % 2 == 1:
-        zexpr = "max(1.0,1.10-0.0007*on)"         # 홀수: 줌아웃
-    else:
-        zexpr = "min(1.10,1.0+0.0007*on)"         # 짝수: 줌인
+    d = max(1, int(dur * fps))
+    cx = "iw/2-(iw/zoom/2)"; cy = "ih/2-(ih/zoom/2)"
+    mode = idx % 4
+    if idx == 0:                                   # 훅: 강한 줌인 펀치
+        z, x, y = f"min(1.22,1.0+0.0020*on)", cx, cy
+    elif mode == 1:                                # 줌아웃
+        z, x, y = f"max(1.0,1.14-0.0009*on)", cx, cy
+    elif mode == 2:                                # 줌인 + 좌→우 팬
+        z = f"min(1.14,1.0+0.0009*on)"; x = f"(iw-iw/zoom)*on/{d}"; y = cy
+    elif mode == 3:                                # 줌인 + 상→하 팬
+        z = f"min(1.14,1.0+0.0009*on)"; x = cx; y = f"(ih-ih/zoom)*on/{d}"
+    else:                                          # 줌인 + 우→좌 팬
+        z = f"min(1.14,1.0+0.0009*on)"; x = f"(iw-iw/zoom)*(1-on/{d})"; y = cy
     vf = (
         f"scale={W*2}:{H*2},"
-        f"zoompan=z='{zexpr}':d={max(1,int(dur*fps))}:"
-        f"x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={W}x{H}:fps={fps},"
+        f"zoompan=z='{z}':d={d}:x='{x}':y='{y}':s={W}x{H}:fps={fps},"
         f"format=yuv420p"
     )
+    # ===== 미니 Director: 장면 성격별 효과 =====
+    try: bar = float(bar or 0)
+    except Exception: bar = 0
+    col = "0x22C55E" if cdir == "up" else ("0x3182F6" if cdir == "down" else "0xE5E7EB")
+    by = int(H * 0.72)
+
+    # (전 장면) 하단 진행바 — 항상 약간의 움직임
+    vf += f",drawbox=x=0:y={H-10}:w='{W}*min(1,t/{max(0.1,dur):.2f})':h=10:color=0xFFFFFF@0.4:t=fill"
+
+    # (훅) 첫 장면 화이트 플래시(페이드 인)
+    if idx == 0:
+        vf += ",fade=t=in:st=0:d=0.35:color=white"
+
+    if bar > 0:
+        # (수치) 막대 차오름 + 숫자 카운트업
+        vf += (f",drawbox=x=90:y={by}:w=900:h=22:color=0xFFFFFF@0.15:t=fill"
+               f",drawbox=x=90:y={by}:w='900*{min(bar,1.0):.3f}*min(1,t/0.8)':h=22:color={col}@0.95:t=fill")
+        if FONTFILE and str(num).strip():
+            try:
+                N = int(round(float(str(num).replace(",", ""))))
+                txt = f"%{{eif\:min({N}\,{N}*t/0.8)\:d}}"
+                vf += (f",drawtext=fontfile={FONTFILE}:text='{txt}':fontsize=110:fontcolor={col}:"
+                       f"x=90:y={by-170}:borderw=7:bordercolor=0x101010")
+                # 단위는 별도 정적 텍스트(퍼센트는 %{} 뒤에 붙이면 깨져서 분리)
+                if unit in ("%", "$"):
+                    ux = 90 + (len(str(N)) * 66) + 12
+                    vf += (f",drawtext=fontfile={FONTFILE}:text='{unit}':fontsize=84:fontcolor={col}:"
+                           f"x={ux}:y={by-150}:borderw=6:bordercolor=0x101010")
+            except Exception:
+                pass
+    elif cdir in ("up", "down"):
+        # (상승/하락) 펄스 라인 — 폭이 오르내리며 살아있게
+        vf += f",drawbox=x=90:y={by}:w='340+120*sin(3*t)':h=16:color={col}@0.9:t=fill"
     subprocess.run(["ffmpeg", "-y", "-loop", "1", "-i", str(img),
         "-t", f"{dur:.3f}", "-vf", vf, "-r", str(fps),
         "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
@@ -116,8 +159,9 @@ def burn_subtitles(cfg, fps):
         return
     try:
         subbed = DATA / "_subbed.mp4"
-        style = ("FontName=NanumGothic,FontSize=44,Bold=1,PrimaryColour=&H00FFFFFF,"
-                 "OutlineColour=&H00151515,BorderStyle=1,Outline=3,Shadow=1,Alignment=2,MarginV=150")
+        style = ("FontName=NanumGothic,FontSize=50,Bold=1,PrimaryColour=&H00FFFFFF,"
+                 "OutlineColour=&H00101010,BackColour=&H80000000,BorderStyle=1,Outline=4,"
+                 "Shadow=0,Alignment=2,MarginV=230")
         subprocess.run(["ffmpeg", "-y", "-i", str(OUT),
             "-vf", f"subtitles={SRT.as_posix()}:original_size={cfg['video']['width']}x{cfg['video']['height']}:force_style='{style}'",
             "-c:v", "libx264", "-preset", "medium", "-crf", "20", "-pix_fmt", "yuv420p",
@@ -158,7 +202,12 @@ def main():
     durs = [max(1.5, target * w / wsum) for w in weights]
     log(f"[video] {n} scenes, audio={audio_dur:.1f}s, durs={[round(x,1) for x in durs]}")
 
-    clips = [make_clip(img, durs[i], W, H, fps, i) for i, img in enumerate(imgs)]
+    def _m(i):
+        try: return meta[i]
+        except Exception: return {}
+    clips = [make_clip(img, durs[i], W, H, fps, i, _m(i).get("bar", 0), _m(i).get("cdir", ""),
+                       _m(i).get("n", ""), _m(i).get("unit", ""))
+             for i, img in enumerate(imgs)]
     use_bgm = bool(v.get("bgm") and BGM.exists())
 
     try:

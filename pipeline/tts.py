@@ -53,7 +53,7 @@ async def _edge(text, voice, rate):
                     cur_start = st
                 cur.append(w); cur_end = en
                 joined = " ".join(cur)
-                if len(joined) >= 13 or w[-1:] in "。.!?！？":
+                if len(joined) >= 9 or w[-1:] in "。.!?！？":
                     subs.append((cur_start, cur_end, joined))
                     cur, cur_start = [], None
         if cur:

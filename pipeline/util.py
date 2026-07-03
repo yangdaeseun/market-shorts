@@ -6,6 +6,18 @@ DATA = ROOT / "data"
 LOGS = ROOT / "logs"
 TEMPLATES = ROOT / "templates"
 
+def current_slot():
+    """SLOT 환경변수가 있으면 그걸, 없으면 현재 한국시간으로 슬롯 자동 판별."""
+    import datetime
+    v = os.environ.get("SLOT", "").strip()
+    if v in ("morning", "preopen", "close", "uspreview", "intraday"):
+        return v
+    h = (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).hour
+    if 3 <= h < 7:  return "morning"
+    if 7 <= h < 12: return "preopen"
+    if 12 <= h < 20: return "close"
+    return "uspreview"
+
 def load_config():
     with open(ROOT / "config.yaml", encoding="utf-8") as f:
         return yaml.safe_load(f)

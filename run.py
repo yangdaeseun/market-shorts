@@ -34,6 +34,9 @@ def main():
     # 1) 수집
     step("수집 collect", ["pipeline/collect.py"] + mock, cfg)
 
+    # 1.2) 리서치(호재/악재 뉴스+일정 캘린더)
+    step("리서치 researcher", ["pipeline/researcher.py"] + mock, cfg, allow_fail=True)
+
     # 1.5) 기획(오늘 앵글 결정)
     step("기획 planner", ["pipeline/planner.py"] + mock, cfg, allow_fail=True)
 
@@ -42,7 +45,7 @@ def main():
     qcfg = cfg["quality"]
     held = False
     for attempt in range(qcfg["max_retries"] + 1):
-        score = subprocess.run([PY, "pipeline/quality_gate.py"], cwd=str(ROOT),
+        score = subprocess.run([PY, "pipeline/editor.py"], cwd=str(ROOT),
                                capture_output=True, text=True)
         sys.stdout.write(score.stdout)
         pts = 0
@@ -54,13 +57,20 @@ def main():
             log(f"[run] 품질 통과 ({pts}점)")
             break
         if attempt < qcfg["max_retries"]:
-            log(f"[run] {pts}점 < {qcfg['min_score']}점 → 재생성 시도 {attempt+1}")
+            log(f"[run] {pts}점 < {qcfg['min_score']}점 → Planner부터 재생성 {attempt+1}")
+            step("재기획 planner", ["pipeline/planner.py"] + mock, cfg, allow_fail=True)
             step("재분석 analyze", ["pipeline/analyze.py"] + mock, cfg)
         else:
             log(f"[run] 최종 {pts}점 미달")
             if qcfg["hold_on_fail"]:
                 held = True
                 notify(cfg, f"⚠️ 시황숏츠 품질 미달({pts}점) → 비공개 보류")
+
+    # 3.4) 팩트체크(확인 안 된 수급 수치 정정)
+    step("팩트체크 fact_checker", ["pipeline/fact_checker.py"], cfg, allow_fail=True)
+
+    # 3.45) 카피(훅·제목 CTR 최적화)
+    step("카피 copywriter", ["pipeline/copywriter.py"], cfg, allow_fail=True)
 
     # 3.5) 배경 이미지 생성(실패해도 계속)
     step("이미지 images", ["pipeline/images.py"] + mock, cfg, allow_fail=True)

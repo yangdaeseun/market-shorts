@@ -19,8 +19,9 @@ def build(cfg, data, an):
     prefix = cfg["channel"]["title_prefix"]
     tag = SLOT_TAG.get(an.get("slot","morning"), "브리핑")
     hook = clean(an.get("hook", an.get("one_liner", "오늘의 시장 전략")))
+    tfinal = clean(an.get("title_final", ""))
 
-    title = f"[{tag}] {hook} | {prefix} ({date}) #shorts"
+    title = f"[{tag}] {tfinal or hook} | {prefix} ({date}) #shorts"
     title = clean(title)[:95]
 
     c = an.get("cause", {})
@@ -41,10 +42,12 @@ def build(cfg, data, an):
               f"- 갭상승: {clean(pb.get('gap_up',''))}",
               f"- 갭하락: {clean(pb.get('gap_down',''))}",
               f"- 횡보: {clean(pb.get('flat',''))}", ""]
+    cats = [clean(x) for x in an.get("catalysts", [])[:3]]
     risks = [clean(x) for x in an.get("risks", [])[:3]]
-    events = [clean(x) for x in an.get("events", [])[:3]]
+    events = [clean(x) for x in an.get("events", [])[:5]]
+    if cats: P += ["[ 오늘 호재 ]"] + [f"- {c}" for c in cats] + [""]
     if risks: P += ["[ 리스크 ]"] + [f"- {r}" for r in risks] + [""]
-    if events: P += ["[ 오늘 일정 ]"] + [f"- {e}" for e in events] + [""]
+    if events: P += ["[ 호재·악재 일정 캘린더 ]"] + [f"- {e}" for e in events] + [""]
     P += ["매일 장 전, 오늘 대응 전략을 1분으로 정리합니다. 구독하고 놓치지 마세요!",
           "", "#주식 #증시 #코스피 #미국증시 #나스닥 #반도체 #AI #종목추천 #재테크 #shorts",
           "", "본 영상은 정보 제공 목적이며 투자 권유가 아닙니다. 투자 판단과 책임은 본인에게 있습니다."]

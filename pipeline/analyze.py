@@ -7,7 +7,7 @@ analyze.py — 시장 데이터+뉴스 → 'AI 시장 전략 브리핑'(JSON).
 import sys, os, json, argparse, pathlib, traceback
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
-from pipeline.util import load_config, log, read_json, write_json, DATA
+from pipeline.util import load_config, log, read_json, write_json, DATA, current_slot
 from pipeline import kr_themes
 
 SLOTS = {
@@ -19,7 +19,7 @@ SLOTS = {
 }
 
 def slot_now():
-    return os.environ.get("SLOT", "morning").strip() or "morning"
+    return current_slot()
 
 SCHEMA_HINT = """
 아래 JSON 하나만 출력(마크다운/백틱/설명 금지). 숫자는 제공된 실제 데이터만 사용.
@@ -51,19 +51,20 @@ SCHEMA_HINT = """
   },
   "theme": "오늘 핵심 테마 한 단어(예: 반도체/전력/원전/비트코인/방산/조선/2차전지/바이오/증시)",
   "scenes": [
-    {"t":"한 화면 한 메시지(큰 글씨, 12자내, 단정형)","s":"보조 한 줄(없으면 \"\", 18자내)","v":"이 장면 영어 이미지 키워드(없으면 \"\")","c":"up|down|"}
+    {"t":"한 화면 한 메시지(큰 글씨, 12자내, 단정형)","s":"보조 한 줄(없으면 \"\", 18자내)","v":"이 장면 영어 이미지 키워드(없으면 \"\")","c":"up|down|","bar":0,"n":"카운트업할 숫자(예: 6, 25832; 없으면 \"\")","u":"단위(%|$|없음)"}
   ],
   "narration": "아나운서 대본. 1.5배속 재생 고려해 빠르고 구체적으로. 순서: (1)3초 훅 강하게 (2)무슨 일+원인 판별 (3)국내 영향도와 이유 (4)오늘 강한 섹터 (5)먼저 볼 종목: 실제 종목명 3~5개를 또박또박 말하고 각 종목이 지금 왜 핫한지 촉매를 한 마디씩 설명 (5.5)그중 오늘 가장 핫한 1개는 촉매·왜 지금·체크포인트까지 2~3문장으로 깊게 설명 (6)갭상승/갭하락/횡보 대응 (7)오늘의 호재와 조심할 리스크 (8)오늘 이벤트/일정 (9)한 문장 요약. 440~520자."
 }
 sectors 3개, stocks 5개, risks/events 2~3개.
-scenes 규칙(가장 중요): 12~15개. '한 장면=한 메시지'. 슬라이드가 아니라 쇼츠 컷처럼. 순서는 (0~3초)강한 훅 → 핵심 한 방 → 왜(누가·규모·근거) → 국내 파급 → 핵심 종목 하나씩 → 대응 → 한 줄 요약/CTA. 말투는 단정하게('~입니다','딱 하나입니다'), '가능성/전망/예상' 남발 금지. 각 t는 짧고 강하게. 스토리가 이어지게(엔비디아→GPU→데이터센터→HBM→SK하이닉스 식 연결).
+scenes 규칙(가장 중요): 12~15개. '한 장면=한 메시지'. 슬라이드가 아니라 쇼츠 컷처럼. 순서는 (0~3초)강한 훅 → 핵심 한 방 → 왜(누가·규모·근거) → 국내 파급 → 핵심 종목 하나씩 → 대응 → 한 줄 요약/CTA. 말투는 단정하게('~입니다','딱 하나입니다'), '가능성/전망/예상' 남발 금지. 각 t는 짧고 강하게. 스토리가 이어지게(엔비디아→GPU→데이터센터→HBM→SK하이닉스 식 연결). 향후 중요한 호재/악재 일정(실적발표일·CPI·금통위·만기 등, 날짜 포함)을 최소 1~2개 장면에 꼭 넣어라. 구체 수치(등락률·급등폭 등)가 있는 장면엔 bar(0~1, 그 수치의 강도)를 넣어 막대가 차오르게 하고, n(숫자)·u(단위)도 넣어 숫자가 0부터 올라가게 하라(예: 6% 급등이면 bar 0.6, n "6", u "%").
 narration은 scenes의 t(+s)를 자연스럽게 이어 말하는 대본으로(장면과 음성이 일치하도록).
 images 5개는 서로 다른 장면이며 반드시 오늘의 실제 주제(종목/섹터/사건)를 구체적 사물로 묘사할 것. 막연한 주식차트·도시야경 반복 금지.
 """
 
-def build_prompt(data, slot, plan):
+def build_prompt(data, slot, plan, events=None):
     heads = data.get("headlines", [])
     themap = kr_themes.context_block(heads)
+    evtxt = ("\n[리서치: 오늘 호재/악재 + 향후 일정]\n" + json.dumps(events, ensure_ascii=False)) if events else ""
     label = SLOTS.get(slot, SLOTS["morning"])
     angle = (f"오늘 이 영상의 앵글(관점): 「{plan.get('title','')}」 (유형 {plan.get('angle','')}).\n"
              f"이 앵글로 영상 전체를 관통시켜라 — hook은 이 제목의 '궁금증'을 던지고, narration은 그 질문을 먼저 제시한 뒤 답하는 구조로. "
@@ -73,7 +74,7 @@ def build_prompt(data, slot, plan):
             "밤사이/최근 글로벌·국내 데이터와 뉴스로 오늘의 '대응 전략'을 만든다. 뉴스 나열 금지, 앵글 중심.\n"
             "특히 '지금 시청자가 가장 관심 가질 종목과 그 이유'를 구체적으로 짚어라.\n\n"
             f"[데이터]\n{json.dumps(data, ensure_ascii=False)}\n\n"
-            f"[{themap}]\n\n" + SCHEMA_HINT)
+            f"[{themap}]\n" + evtxt + "\n\n" + SCHEMA_HINT)
 
 def call_gemini(prompt):
     import google.generativeai as genai
@@ -137,16 +138,16 @@ def mock(data, slot, plan=None):
         "theme": "반도체",
         "scenes": [
             {"t":"오늘, 반도체입니다","s":"딱 하나만 보세요","v":"glowing silicon wafer macro, green neon","c":""},
-            {"t":"밤사이 엔비디아 급등","s":"AI 투자가 다시 붙었다","v":"nvidia style gpu chip glowing, green up arrow","c":"up"},
+            {"t":"밤사이 엔비디아 급등","s":"AI 투자가 다시 붙었다","v":"nvidia style gpu chip glowing, green up arrow","c":"up","bar":0.75,"n":"6","u":"%"},
             {"t":"이유는 딱 하나","s":"대형 데이터센터 계약","v":"massive AI data center servers glowing","c":""},
             {"t":"실적이 아니다","s":"AI 투자 확대다","v":"streams of capital light into servers","c":""},
             {"t":"한국이 먼저 받는다","s":"HBM·전력 밸류체인","v":"korean semiconductor factory at night","c":"up"},
-            {"t":"1번 SK하이닉스","s":"HBM 사실상 독점","v":"HBM memory chip stack macro, green","c":"up"},
+            {"t":"1번 SK하이닉스","s":"HBM 사실상 독점","v":"HBM memory chip stack macro, green","c":"up","bar":0.6,"n":"3","u":"%"},
             {"t":"2번 한미반도체","s":"HBM 장비 핵심","v":"semiconductor bonding equipment closeup","c":"up"},
             {"t":"3번 이수페타시스","s":"AI 기판 수요 폭발","v":"high layer PCB circuit board macro","c":"up"},
             {"t":"전력도 같이 간다","s":"제룡전기·LS ELECTRIC","v":"power transmission towers with lightning","c":"up"},
             {"t":"단, 갭상승 4%면","s":"추격 말고 눌림목","v":"stock candlestick chart pullback","c":""},
-            {"t":"조심할 건 환율","s":"급등 시 외국인 매도","v":"won dollar exchange board red","c":"down"},
+            {"t":"조심할 건 환율","s":"급등 시 외국인 매도","v":"won dollar exchange board red","c":"down","bar":0.5,"n":"1300","u":""},
             {"t":"오늘 밤 고용지표","s":"미국 지표 체크","v":"economic data calendar and clock","c":""},
             {"t":"오늘 결론","s":"AI 반도체 순환매","v":"","c":"up"},
             {"t":"저장하고 내일 확인","s":"구독하면 매일 옵니다","v":"","c":""}
@@ -169,14 +170,26 @@ def main():
     slot = slot_now()
     try: plan = read_json(DATA / "plan.json")
     except Exception: plan = {}
+    try: events = read_json(DATA / "events.json")
+    except Exception: events = {}
     log(f"[analyze] SLOT = {slot} | 앵글 = {plan.get('angle')} ({plan.get('title')})")
     if args.mock or not os.environ.get("GEMINI_API_KEY"):
         log("[analyze] MOCK/no-key mode"); result = mock(data, slot, plan)
     else:
         try:
-            result = call_gemini(build_prompt(data, slot, plan))
+            result = call_gemini(build_prompt(data, slot, plan, events))
         except Exception as e:
             log(f"[analyze] Gemini 실패 → mock ({e})"); result = mock(data, slot)
+    # 리서치 캘린더를 권위값으로 반영(호재/악재 일정)
+    if events:
+        up = events.get("upcoming", [])[:4]
+        if up:
+            result["events"] = [f"{x.get('date','')} {x.get('name','')}".strip() for x in up]
+        pos = events.get("today_positive", [])[:3]
+        if pos: result["catalysts"] = pos
+        neg = events.get("today_negative", [])[:2]
+        if neg:
+            result["risks"] = (neg + result.get("risks", []))[:3]
     result["slot"] = slot
     result["slot_label"] = SLOTS.get(slot, SLOTS["morning"])
     write_json(DATA / "analysis.json", result)
