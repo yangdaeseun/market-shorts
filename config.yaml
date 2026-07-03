@@ -82,4 +82,5 @@ quality:
 # 실패/완료 알림 (선택). 텔레그램이 가장 간단.
 notify:
   telegram_enabled: false
+  kakao_enabled: true      # 카카오톡 '나에게 보내기' (시크릿: KAKAO_REST_KEY, KAKAO_REFRESH_TOKEN)
   # 토큰/챗ID는 GitHub Secrets(TELEGRAM_TOKEN, TELEGRAM_CHAT)로 주입

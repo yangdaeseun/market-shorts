@@ -97,6 +97,14 @@
     {% if r.v %}<div class="spot-row"><span class="spot-k">{{ r.k }}</span><span class="spot-v">{{ r.v }}</span></div>{% endif %}
   {% endfor %}
   </div>
+{% elif slide.type == "scene" %}
+  <div class="scene-kicker">{{ slide.kicker }}</div>
+  <div class="scene-wrap {{ 'up' if slide.cdir=='up' else ('down' if slide.cdir=='down' else '') }}">
+    <div class="scene-bar"></div>
+    <div class="scene-text">{{ slide.text }}</div>
+    {% if slide.sub %}<div class="scene-sub">{{ slide.sub }}</div>{% endif %}
+  </div>
+  <div class="scene-page">{{ slide.page }}</div>
 {% endif %}
 
   <div class="disclaimer">투자 참고용 · 투자 판단과 책임은 본인에게 있습니다</div>

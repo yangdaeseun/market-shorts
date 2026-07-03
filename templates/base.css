@@ -145,3 +145,16 @@ body{
 .spot-row{display:flex;align-items:flex-start;gap:26px;}
 .spot-k{flex:0 0 200px;font-size:46px;font-weight:800;color:var(--accent);}
 .spot-v{flex:1;font-size:52px;font-weight:600;color:rgba(255,255,255,.94);line-height:1.32;}
+
+/* ===== 장면(쇼츠 컷) ===== */
+.scene-kicker{position:absolute;top:70px;left:0;right:0;text-align:center;font-size:30px;font-weight:700;color:rgba(255,255,255,.55);letter-spacing:2px;z-index:3;}
+.scene-wrap{position:absolute;top:0;left:0;right:0;bottom:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 90px;text-align:center;z-index:3;gap:40px;}
+.scene-bar{width:120px;height:14px;border-radius:999px;background:var(--accent);opacity:.95;}
+.scene-wrap.up .scene-bar{background:var(--up);}
+.scene-wrap.down .scene-bar{background:var(--down);}
+.scene-text{font-size:132px;font-weight:900;line-height:1.08;letter-spacing:-2px;color:#fff;text-shadow:0 6px 40px rgba(0,0,0,.6);word-break:keep-all;}
+.scene-wrap.up .scene-text{color:#fff;}
+.scene-sub{font-size:64px;font-weight:700;line-height:1.25;color:var(--accent);text-shadow:0 4px 24px rgba(0,0,0,.55);word-break:keep-all;}
+.scene-wrap.up .scene-sub{color:var(--up);}
+.scene-wrap.down .scene-sub{color:var(--down);}
+.scene-page{position:absolute;bottom:120px;left:0;right:0;text-align:center;font-size:32px;font-weight:700;color:rgba(255,255,255,.45);z-index:3;letter-spacing:1px;}

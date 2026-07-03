@@ -40,11 +40,16 @@ def score():
     if pb.get("gap_up") and pb.get("gap_down"): pts += 10
     else: reasons.append("대응 시나리오 부족")
 
-    # 7) 내레이션 길이 (10) — 200~600자
+    # 7) 내레이션 길이 (5)
     n = len(an.get("narration", ""))
-    if 200 <= n <= 600: pts += 10
-    elif n >= 120: pts += 6; reasons.append(f"내레이션 길이 비표준({n}자)")
+    if 200 <= n <= 700: pts += 5
+    elif n >= 120: pts += 3; reasons.append(f"내레이션 길이 비표준({n}자)")
     else: reasons.append(f"내레이션 너무 짧음({n}자)")
+
+    # 8) 스토리보드 장면 수 (5) — 쇼츠 컷
+    sc = an.get("scenes", [])
+    if len(sc) >= 10: pts += 5
+    else: reasons.append(f"장면 {len(sc)}개(10+ 권장)")
 
     return pts, reasons
 

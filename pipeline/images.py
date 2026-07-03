@@ -46,23 +46,23 @@ def main():
     if not cfg.get("images", {}).get("enabled", True):
         log("[images] disabled in config, skip"); return 0
     an = read_json(DATA / "analysis.json")
-    imgs = an.get("images", {})
-    if not imgs:
-        log("[images] no image prompts, skip"); return 0
+    scenes = an.get("scenes", [])
+    # 장면별 이미지: v(영어 키워드)가 있는 장면만, 시간 고려해 최대 10장
+    jobs = [(i, sc.get("v", "")) for i, sc in enumerate(scenes) if sc.get("v")]
+    jobs = jobs[:10]
+    if not jobs:
+        # 구버전 호환: images{} 사용
+        jobs = list(enumerate(an.get("images", {}).values()))
+        if not jobs:
+            log("[images] no prompts, skip"); return 0
     IMG.mkdir(exist_ok=True)
     for f in IMG.glob("*.png"):
         f.unlink()
     base = _seed_base()
-    for i, (key, prompt) in enumerate(imgs.items(), 1):
+    for i, prompt in jobs:
         if not prompt:
             continue
         seed = (base + i * 1301) % 2_000_000
-        ok = pollinations(prompt, IMG / f"{key}.png", seed=seed)
-        log(f"[images] {key}: {'생성 OK' if ok else 'skip'} (seed={seed})")
+        ok = pollinations(prompt, IMG / f"s{i}.png", seed=seed)
+        log(f"[images] s{i}: {'OK' if ok else 'skip'} ({prompt[:30]})")
     return 0
-
-if __name__ == "__main__":
-    try:
-        sys.exit(main())
-    except Exception:
-        traceback.print_exc(); sys.exit(0)  # 이미지 실패는 파이프라인 중단 사유 아님

@@ -58,8 +58,8 @@ def _audio_args(cfg, has_audio, use_bgm, first_input_index):
         filt.append(f"[{ai}:a]volume={cfg['video'].get('bgm_volume',0.12)}[bgm]"); amix.append("[bgm]"); ai += 1
     return inputs, filt, amix, ai
 
-def build_xfade(clips, per, cfg, has_audio, use_bgm, W, H, fps):
-    """크로스페이드 전환으로 합성(한 번의 ffmpeg). 실패 시 예외."""
+def build_xfade(clips, durs, cfg, has_audio, use_bgm, W, H, fps):
+    """크로스페이드 전환(가변 장면 길이). 실패 시 예외."""
     n = len(clips)
     cmd = ["ffmpeg", "-y"]
     for c in clips:
@@ -70,7 +70,7 @@ def build_xfade(clips, per, cfg, has_audio, use_bgm, W, H, fps):
     vf = []
     prev = "[0:v]"
     for k in range(1, n):
-        off = k * (per - XFADE)
+        off = sum(durs[:k]) - k * XFADE
         lbl = f"[vx{k}]"
         vf.append(f"{prev}[{k}:v]xfade=transition=fade:duration={XFADE}:offset={off:.3f}{lbl}")
         prev = lbl
@@ -141,18 +141,28 @@ def main():
     has_audio = NARR.exists() and ffprobe_dur(NARR) > 0.5
     audio_dur = ffprobe_dur(NARR) if has_audio else 0.0
     n = len(imgs)
-    if has_audio:
-        # xfade로 (n-1)*XFADE 만큼 줄어드는 걸 보정해 오디오 길이에 맞춤
-        per = max(2.5, (audio_dur + 0.8 + (n - 1) * XFADE) / n)
-    else:
-        per = float(v["seconds_per_slide"])
-    log(f"[video] {n} slides, per={per:.2f}s, audio={audio_dur:.1f}s")
 
-    clips = [make_clip(img, per, W, H, fps, i) for i, img in enumerate(imgs)]
+    # 장면별 길이 = 글자 수 가중치로 자동 배분(고정 길이 폐지)
+    try:
+        meta = json.loads((DATA / "slides_meta.json").read_text(encoding="utf-8"))
+        weights = [max(0.6, len(m.get("text", "")) + 0.6 * len(m.get("sub", ""))) for m in meta]
+        if len(weights) != n:
+            weights = [1.0] * n
+    except Exception:
+        weights = [1.0] * n
+    if has_audio:
+        target = audio_dur + 0.8 + (n - 1) * XFADE
+    else:
+        target = float(v["seconds_per_slide"]) * n
+    wsum = sum(weights) or n
+    durs = [max(1.5, target * w / wsum) for w in weights]
+    log(f"[video] {n} scenes, audio={audio_dur:.1f}s, durs={[round(x,1) for x in durs]}")
+
+    clips = [make_clip(img, durs[i], W, H, fps, i) for i, img in enumerate(imgs)]
     use_bgm = bool(v.get("bgm") and BGM.exists())
 
     try:
-        build_xfade(clips, per, cfg, has_audio, use_bgm, W, H, fps)
+        build_xfade(clips, durs, cfg, has_audio, use_bgm, W, H, fps)
         log("[video] 크로스페이드 전환 적용")
     except subprocess.CalledProcessError as e:
         log("[video] xfade 실패 → concat 폴백: " + (e.stderr.decode()[-300:] if e.stderr else ""))

@@ -39,98 +39,44 @@ def hl(headline_html):
         out.append(f'<span class="{mode}">{esc}</span>' if mode else esc)
     return "".join(out)
 
-# ---------- 슬라이드 빌더 ----------
-def _stars(n):
-    try: n=int(n)
-    except Exception: n=3
-    n=max(1,min(5,n))
-    return "★"*n + "☆"*(5-n)
+# ---------- 슬라이드 빌더(장면 기반) ----------
+def theme_palette(theme):
+    t = (theme or "").lower()
+    table = [
+        (("반도체", "hbm", "칩", "메모리", "ai"), ("#22C55E", "#04160C")),
+        (("전력", "전선", "송전", "원전", "에너지"), ("#3B82F6", "#050B1C")),
+        (("비트", "코인", "암호", "크립토"), ("#F59E0B", "#160F02")),
+        (("방산", "국방", "우주", "조선"), ("#9FB2C6", "#0A0E14")),
+        (("전지", "배터리", "2차"), ("#10B981", "#03140E")),
+        (("바이오", "제약", "헬스"), ("#2DD4BF", "#04140F")),
+        (("자동차", "모빌리티"), ("#F43F5E", "#160309")),
+    ]
+    for keys, pal in table:
+        if any(k in t for k in keys):
+            return pal
+    return ("#3182F6", "#0B1220")
 
 def build_slides(cfg, data, an):
-    prefix = cfg["channel"]["title_prefix"]
-    date = data.get("date", "")
-    label = an.get("slot_label", "오늘 대응 브리핑")
+    scenes = an.get("scenes", [])
+    total = len(scenes)
     slides = []
-
-    # 1) 3초 훅 (표지)
-    slides.append({"type": "cover", "img_key": "hook",
-        "eyebrow": f"{date} · {label}",
-        "hero_name": "", "hero_pct": "", "hero_dir": "flat",
-        "title_html": html.escape(an.get("hook", an.get("one_liner", ""))),
-        "subtitle": an.get("one_liner", ""), "foot": prefix})
-
-    # 2) 원인 판별
-    c = an.get("cause", {})
-    slides.append({"type": "why", "img_key": "cause", "eyebrow": "왜 이런 일이", "page": "1",
-        "title_html": "원인은 <span class='em'>이것</span>",
-        "items": [
-            {"cls": "is-up", "lead_html": html.escape(c.get("primary","")),
-             "body": f"[{c.get('type','')}] {c.get('detail','')}"},
-        ]})
-
-    # 3) 국내 영향도 (별점)
-    k = an.get("kr_impact", {})
-    slides.append({"type": "impact", "eyebrow": "국내 시장 영향도", "page": "2",
-        "title_html": "오늘 국내 <span class='em'>영향도</span>",
-        "level": k.get("level","중"), "stars": _stars(k.get("stars",3)),
-        "reason": k.get("reason","")})
-
-    # 4) 강한 섹터 TOP3
-    secs = an.get("sectors", [])[:3]
-    slides.append({"type": "why", "img_key": "sectors", "eyebrow": "가장 강한 섹터", "page": "3",
-        "title_html": "오늘 <span class='em'>섹터 TOP3</span>",
-        "items": [{"cls": ("is-up" if x.get("dir")=="up" else "is-down"),
-                   "lead_html": ("▲ " if x.get("dir")=="up" else "▼ ") + html.escape(x.get("name","")),
-                   "body": x.get("reason","")} for x in secs]})
-
-    # 5) 주목 종목 TOP5
-    st = an.get("stocks", [])[:5]
-    slides.append({"type": "why", "img_key": "stocks", "eyebrow": "먼저 볼 종목", "page": "4",
-        "title_html": "관심 <span class='em'>종목 TOP5</span>",
-        "items": [{"cls": "is-pos", "lead_html": html.escape(x.get("name","")),
-                   "body": x.get("reason","")} for x in st]})
-
-    # 5.5) 오늘의 핫 종목 스포트라이트
-    hs = an.get("hot_stock", {})
-    if hs.get("name"):
-        slides.append({"type": "spotlight", "img_key": "stocks", "eyebrow": "오늘의 핫 종목", "page": "5",
-            "name": hs.get("name", ""), "tag": hs.get("tag", ""),
-            "rows": [
-                {"k": "촉매",   "v": hs.get("catalyst", "")},
-                {"k": "왜 지금", "v": hs.get("why_now", "")},
-                {"k": "체크",   "v": hs.get("watch", "")},
-            ]})
-
-    # 6) 대응 시나리오
-    pb = an.get("playbook", {})
-    slides.append({"type": "rows", "img_key": "playbook", "eyebrow": "오늘 대응 전략", "page": "5",
-        "title_html": "상황별 <span class='em'>대응</span>",
-        "items": [
-            {"name": "갭상승", "dir": "up",   "rate": "", "price": pb.get("gap_up","")},
-            {"name": "갭하락", "dir": "down", "rate": "", "price": pb.get("gap_down","")},
-            {"name": "횡보",   "dir": "flat", "rate": "", "price": pb.get("flat","")},
-        ]})
-
-    # 7) 오늘의 호재 & 리스크
-    cats = an.get("catalysts", [])[:2]
-    risks = an.get("risks", [])[:2]
-    items = [{"cls": "is-pos", "lead_html": "🟢 " + html.escape(c), "body": ""} for c in cats]
-    items += [{"cls": "is-neg", "lead_html": "⚠ " + html.escape(r), "body": ""} for r in risks]
-    slides.append({"type": "why", "img_key": "cause", "eyebrow": "오늘의 호재 & 리스크", "page": "6",
-        "title_html": "<span class='em'>호재</span> &amp; 리스크", "items": items})
-
-    # 8) 10초 요약 (마무리)
-    slides.append({"type": "korea", "img_key": "playbook", "eyebrow": "핵심 요약", "page": "7",
-        "tag": "오늘 한 줄", "line_html": html.escape(an.get("summary","")),
-        "note": an.get("one_liner",""),
-        "cta_html": "도움 됐다면 <span class='q'>구독·저장</span> 👇"})
+    for i, sc in enumerate(scenes):
+        v = sc.get("v", "")
+        slides.append({
+            "type": "scene", "idx": i,
+            "text": sc.get("t", ""), "sub": sc.get("s", ""),
+            "cdir": sc.get("c", ""),
+            "img_key": (f"s{i}" if v else None),
+            "kicker": data.get("date", ""),
+            "page": f"{i+1} / {total}",
+        })
     return slides
 
 # ---------- 렌더 ----------
-def render(cfg, slides):
+def render(cfg, slides, d=None):
     css = (TEMPLATES / "base.css").read_text(encoding="utf-8")
     tmpl = Template((TEMPLATES / "slide.html").read_text(encoding="utf-8"))
-    d = cfg["design"]
+    d = d or cfg["design"]
     out_dir = DATA / "slides"
     out_dir.mkdir(exist_ok=True)
     for f in out_dir.glob("*.png"):
@@ -164,7 +110,10 @@ def main():
         if k and (DATA / "images" / f"{k}.png").exists():
             sl["bg_image"] = f"images/{k}.png"
     write_json(DATA / "slides_meta.json", slides)
-    paths = render(cfg, slides)
+    ac, bg = theme_palette(an.get("theme", ""))
+    d = dict(cfg["design"]); d["accent"] = ac; d["bg"] = bg
+    log(f"[render] theme={an.get('theme')} accent={ac}")
+    paths = render(cfg, slides, d)
     write_json(DATA / "narration.json", {"text": an.get("narration", "")})
     log(f"[render] {len(paths)} slides rendered")
     return 0
