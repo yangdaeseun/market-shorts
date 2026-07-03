@@ -30,36 +30,58 @@ def _seed_base():
     return (int(d) + sum(ord(c) for c in slot) * 101) % 2_000_000
 
 def gemini_image(prompt, out):
-    """제미나이 이미지 생성. 성공 시 True. 실패 시 예외(원인 로그용)."""
+    """제미나이 이미지 생성. 여러 모델·설정을 자동 시도. 성공 True, 실패 시 원인 종합 예외."""
     from google import genai
     from google.genai import types
     import base64
     client = genai.Client(api_key=os.environ["GEMINI_API_KEY"].strip())
-    model = os.environ.get("IMAGE_MODEL", "gemini-2.5-flash-image")
-    last = None
-    for modal in (["IMAGE"], ["TEXT", "IMAGE"]):
-        try:
-            r = client.models.generate_content(
-                model=model, contents=prompt,
-                config=types.GenerateContentConfig(response_modalities=modal))
-        except Exception as e:
-            last = e; continue
+    models = [m for m in [os.environ.get("IMAGE_MODEL", "").strip(),
+              "gemini-2.5-flash-image", "gemini-3.1-flash-image-preview",
+              "gemini-3-pro-image-preview"] if m]
+    errors = []
+
+    def extract(r):
         cand = (getattr(r, "candidates", None) or [None])[0]
         parts = (getattr(getattr(cand, "content", None), "parts", None)
                  or getattr(r, "parts", None) or [])
         for pt in parts:
             inl = getattr(pt, "inline_data", None)
-            if inl is not None and getattr(inl, "data", None):
+            if inl and getattr(inl, "data", None):
                 data = inl.data
                 if isinstance(data, str):
                     data = base64.b64decode(data)
                 if data and len(data) > 5000:
+                    return data
+        return None
+
+    def cfg(kind):
+        if kind == "aspect":
+            return types.GenerateContentConfig(response_modalities=["IMAGE"],
+                       image_config=types.ImageConfig(aspect_ratio="9:16"))
+        if kind == "modal":
+            return types.GenerateContentConfig(response_modalities=["IMAGE"])
+        return None
+
+    for model in models:
+        for kind in ("aspect", "modal", "plain"):
+            try:
+                c = cfg(kind)
+                r = (client.models.generate_content(model=model, contents=prompt, config=c)
+                     if c is not None else
+                     client.models.generate_content(model=model, contents=prompt))
+                data = extract(r)
+                if data:
                     out.write_bytes(data)
+                    log(f"[images]   -> {model} ({kind}) 성공")
                     return True
-        last = RuntimeError("이미지 파트 없음(텍스트만 반환)")
-    if last:
-        raise last
-    return False
+                errors.append(f"{model}/{kind}: 이미지없음")
+                break  # 응답은 왔는데 이미지 없음 → 다음 모델
+            except TypeError:
+                continue  # 이 설정 미지원 → 더 단순한 설정으로
+            except Exception as e:
+                errors.append(f"{model}: {str(e)[:70]}")
+                break  # 모델 자체 오류 → 다음 모델
+    raise RuntimeError(" || ".join(errors[:6]) or "unknown")
 
 def pollinations(prompt, out, seed, w=1080, h=1920):
     import time
@@ -88,6 +110,7 @@ def main():
     provider = icfg.get("provider", "auto")   # auto|gemini|pollinations
     mode = icfg.get("mode", "infographic")     # infographic|background
     mx = int(icfg.get("max_images", 8))
+    log(f"[images] start: enabled={icfg.get('enabled', True)} provider={provider} mode={mode} key={bool(os.environ.get('GEMINI_API_KEY'))}")
     an = read_json(DATA / "analysis.json")
     theme = an.get("theme", "증시")
     scenes = an.get("scenes", [])

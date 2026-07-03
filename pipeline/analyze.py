@@ -193,6 +193,12 @@ def main():
         neg = events.get("today_negative", [])[:2]
         if neg:
             result["risks"] = (neg + result.get("risks", []))[:3]
+    nar = (result.get("narration") or "").strip()
+    if len(nar) > 620:
+        cut = nar[:600]
+        p2 = max(cut.rfind("."), cut.rfind("다."), cut.rfind("요."))
+        result["narration"] = (cut[:p2+1] if p2 > 300 else cut).strip()
+        log(f"[analyze] 나레이션 {len(nar)}자→{len(result['narration'])}자로 컷(영상 길이 제한)")
     result["slot"] = slot
     result["slot_label"] = SLOTS.get(slot, SLOTS["morning"])
     write_json(DATA / "analysis.json", result)
