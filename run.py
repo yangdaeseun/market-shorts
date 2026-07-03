@@ -34,6 +34,9 @@ def main():
     # 1) 수집
     step("수집 collect", ["pipeline/collect.py"] + mock, cfg)
 
+    # 1.5) 기획(오늘 앵글 결정)
+    step("기획 planner", ["pipeline/planner.py"] + mock, cfg, allow_fail=True)
+
     # 2) 분석 + 3) 품질 게이트(+재생성)
     step("분석 analyze", ["pipeline/analyze.py"] + mock, cfg)
     qcfg = cfg["quality"]

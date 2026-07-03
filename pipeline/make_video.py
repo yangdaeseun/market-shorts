@@ -107,7 +107,14 @@ def main():
     log(f"[video] wrote {OUT} ({OUT.stat().st_size//1024} KB, {ffprobe_dur(OUT):.1f}s)")
 
     # (선택) TTS 싱크 자막 번인 — 실패하면 원본을 그대로 유지(파이프라인 안전)
-    if cfg["video"].get("subtitles", True) and SRT.exists():
+    def _has_korean_font():
+        try:
+            import subprocess as _sp
+            out = _sp.check_output(["fc-list"], text=True)
+            return ("nanum" in out.lower()) or ("noto sans cjk" in out.lower())
+        except Exception:
+            return False
+    if cfg["video"].get("subtitles", True) and SRT.exists() and _has_korean_font():
         try:
             subbed = DATA / "_subbed.mp4"
             style = ("FontName=NanumGothic,FontSize=54,Bold=1,"

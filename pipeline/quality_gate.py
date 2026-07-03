@@ -1,10 +1,8 @@
 """
-quality_gate.py — 발행 전 자동 채점 (마스터프롬프트 '90점 미만 재생성' 자동화).
-데이터 완성도 / 인과 분석 충실도 / 내레이션 길이 / 첫 슬라이드 훅 등을 점수화.
-미달이면 run.py 가 1회 재생성 시도, 그래도 미달이면 비공개 보류.
+quality_gate.py — 발행 전 자동 채점(전략 스키마). 미달이면 재생성/보류.
+데이터 완성도 / 원인·섹터·종목 충실도 / 훅 / 대응 시나리오 / 내레이션 길이.
 """
 import sys, pathlib
-
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from pipeline.util import log, read_json, DATA
@@ -14,34 +12,38 @@ def score():
     an = read_json(DATA / "analysis.json")
     pts, reasons = 0, []
 
-    # 1) 지수 데이터 완성도 (25)
+    # 1) 지수 데이터 완성도 (20)
     idx = data.get("indices", {})
     ok = sum(1 for d in idx.values() if d.get("pct") is not None)
-    s = int(25 * ok / max(1, len(idx)))
-    pts += s
+    pts += int(20 * ok / max(1, len(idx)))
     if ok < len(idx): reasons.append(f"지수 일부 결측({ok}/{len(idx)})")
 
-    # 2) 인과 분석 개수·근거 (30)
-    whys = an.get("why", [])
-    if len(whys) >= 3: pts += 18
-    else: reasons.append(f"인과 분석 {len(whys)}개(3개 권장)")
-    if sum(any(c.isdigit() for c in w.get("lead", "")) for w in whys) >= 2:
-        pts += 12
-    else: reasons.append("인과에 숫자 근거 부족")
+    # 2) 훅 (15)
+    if (an.get("hook") or "").strip(): pts += 15
+    else: reasons.append("훅 없음")
 
-    # 3) 표지 훅 (15)
-    if an.get("headline_html") and ("<up>" in an["headline_html"] or "<down>" in an["headline_html"]):
-        pts += 15
-    else: reasons.append("표지 헤드라인 강조 약함")
+    # 3) 원인 판별 (15)
+    c = an.get("cause", {})
+    if c.get("primary") and c.get("type"): pts += 15
+    else: reasons.append("원인 판별 부족")
 
-    # 4) 한국장 전망 (10)
-    if an.get("korea", {}).get("line"): pts += 10
-    else: reasons.append("한국장 전망 없음")
+    # 4) 섹터 TOP3 (15)
+    if len(an.get("sectors", [])) >= 3: pts += 15
+    else: reasons.append(f"섹터 {len(an.get('sectors',[]))}개(3개 권장)")
 
-    # 5) 내레이션 길이 (20) — 25~40초 분량 ≈ 120~330자
+    # 5) 종목 (15)
+    if len(an.get("stocks", [])) >= 4: pts += 15
+    else: reasons.append(f"종목 {len(an.get('stocks',[]))}개(5개 권장)")
+
+    # 6) 대응 시나리오 (10)
+    pb = an.get("playbook", {})
+    if pb.get("gap_up") and pb.get("gap_down"): pts += 10
+    else: reasons.append("대응 시나리오 부족")
+
+    # 7) 내레이션 길이 (10) — 200~600자
     n = len(an.get("narration", ""))
-    if 120 <= n <= 360: pts += 20
-    elif n >= 80: pts += 12; reasons.append(f"내레이션 길이 비표준({n}자)")
+    if 200 <= n <= 600: pts += 10
+    elif n >= 120: pts += 6; reasons.append(f"내레이션 길이 비표준({n}자)")
     else: reasons.append(f"내레이션 너무 짧음({n}자)")
 
     return pts, reasons

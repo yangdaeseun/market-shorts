@@ -51,12 +51,16 @@ SCHEMA_HINT = """
 sectors 3개, stocks 5개, risks/events 2~3개.
 """
 
-def build_prompt(data, slot):
+def build_prompt(data, slot, plan):
     heads = data.get("headlines", [])
     themap = kr_themes.context_block(heads)
     label = SLOTS.get(slot, SLOTS["morning"])
+    angle = (f"오늘 이 영상의 앵글(관점): 「{plan.get('title','')}」 (유형 {plan.get('angle','')}).\n"
+             f"이 앵글로 영상 전체를 관통시켜라 — hook은 이 제목의 '궁금증'을 던지고, narration은 그 질문을 먼저 제시한 뒤 답하는 구조로. "
+             f"모든 섹션(원인/섹터/종목/대응)은 이 앵글에 맞게 취사선택·강조하라. 초점: {plan.get('focus','')}\n") if plan else ""
     return (f"너는 한국 주식 시청자용 '전략 숏츠'의 애널리스트다. 지금 시간대 역할: [{label}].\n"
-            "밤사이/최근 글로벌·국내 데이터와 뉴스로 오늘의 '대응 전략'을 만든다.\n\n"
+            + angle +
+            "밤사이/최근 글로벌·국내 데이터와 뉴스로 오늘의 '대응 전략'을 만든다. 뉴스 나열 금지, 앵글 중심.\n\n"
             f"[데이터]\n{json.dumps(data, ensure_ascii=False)}\n\n"
             f"[{themap}]\n\n" + SCHEMA_HINT)
 
@@ -78,9 +82,10 @@ def call_gemini(prompt):
             last = e; log(f"[analyze] model {name} 실패: {e}")
     raise last if last else RuntimeError("no model")
 
-def mock(data, slot):
+def mock(data, slot, plan=None):
+    plan = plan or {}
     return {
-        "hook": "AI 반도체, 오늘 국내가 받는다",
+        "hook": plan.get("title") or "AI 반도체, 오늘 국내가 받는다",
         "headline_html": "엔비디아 급등에 <up>반도체 순환</up>",
         "one_liner": "밤사이 AI 수요 재확인",
         "cause": {"primary":"AI 데이터센터 투자 확대", "type":"AI투자",
@@ -129,12 +134,14 @@ def main():
     args = ap.parse_args(); cfg = load_config()
     data = read_json(DATA / "data.json")
     slot = slot_now()
-    log(f"[analyze] SLOT = {slot} ({SLOTS.get(slot,'?')})")
+    try: plan = read_json(DATA / "plan.json")
+    except Exception: plan = {}
+    log(f"[analyze] SLOT = {slot} | 앵글 = {plan.get('angle')} ({plan.get('title')})")
     if args.mock or not os.environ.get("GEMINI_API_KEY"):
-        log("[analyze] MOCK/no-key mode"); result = mock(data, slot)
+        log("[analyze] MOCK/no-key mode"); result = mock(data, slot, plan)
     else:
         try:
-            result = call_gemini(build_prompt(data, slot))
+            result = call_gemini(build_prompt(data, slot, plan))
         except Exception as e:
             log(f"[analyze] Gemini 실패 → mock ({e})"); result = mock(data, slot)
     result["slot"] = slot
