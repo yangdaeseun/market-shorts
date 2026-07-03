@@ -56,12 +56,31 @@ def theme_palette(theme):
             return pal
     return ("#3182F6", "#0B1220")
 
+def _chart_pts(cdir, seed=0):
+    """추세 라인 포인트(viewBox 0..320 x, 0..150 y, y반전). up=상승/down=하락/flat=완만."""
+    import random
+    rnd = random.Random(seed or 7)
+    n = 8
+    if cdir == "up":
+        base = [110 - i * 11 + rnd.randint(-8, 8) for i in range(n)]
+    elif cdir == "down":
+        base = [30 + i * 11 + rnd.randint(-8, 8) for i in range(n)]
+    else:
+        base = [70 + rnd.randint(-16, 16) for _ in range(n)]
+    base = [max(10, min(140, v)) for v in base]
+    step = 320 / (n - 1)
+    pts = [(round(i * step, 1), round(v, 1)) for i, v in enumerate(base)]
+    line = " ".join(f"{x},{y}" for x, y in pts)
+    area = f"0,150 " + line + f" 320,150"
+    return line, area
+
 def build_slides(cfg, data, an):
     scenes = an.get("scenes", [])
     total = len(scenes)
     slides = []
     for i, sc in enumerate(scenes):
         v = sc.get("v", "")
+        line, area = _chart_pts(sc.get("c", ""), seed=i + 3)
         slides.append({
             "type": "scene", "idx": i,
             "text": sc.get("t", ""), "sub": sc.get("s", ""),
@@ -69,6 +88,7 @@ def build_slides(cfg, data, an):
             "bar": sc.get("bar", 0) or 0,
             "n": str(sc.get("n", "") or ""),
             "unit": sc.get("u", "") or "",
+            "chart_line": line, "chart_area": area,
             "img_key": (f"s{i}" if v else None),
             "kicker": data.get("date", ""),
             "page": f"{i+1} / {total}",
@@ -76,10 +96,19 @@ def build_slides(cfg, data, an):
     return slides
 
 # ---------- 렌더 ----------
+def _hex_rgb(h):
+    h = (h or "#3182F6").lstrip("#")
+    if len(h) == 3: h = "".join(c*2 for c in h)
+    try: return f"{int(h[0:2],16)},{int(h[2:4],16)},{int(h[4:6],16)}"
+    except Exception: return "49,130,246"
+
 def render(cfg, slides, d=None):
     css = (TEMPLATES / "base.css").read_text(encoding="utf-8")
     tmpl = Template((TEMPLATES / "slide.html").read_text(encoding="utf-8"))
-    d = d or cfg["design"]
+    d = dict(d or cfg["design"])
+    d["accent_rgb"] = _hex_rgb(d.get("accent"))
+    d["up_rgb"] = _hex_rgb(d.get("up_color"))
+    d["down_rgb"] = _hex_rgb(d.get("down_color"))
     out_dir = DATA / "slides"
     out_dir.mkdir(exist_ok=True)
     for f in out_dir.glob("*.png"):

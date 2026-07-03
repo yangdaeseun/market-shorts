@@ -78,7 +78,7 @@ def make_clip(img, dur, W, H, fps, idx, bar=0, cdir="", num="", unit="", is_card
         if FONTFILE and str(num).strip():
             try:
                 N = int(round(float(str(num).replace(",", ""))))
-                txt = f"%{{eif\:min({N}\,{N}*t/0.8)\:d}}"
+                txt = rf"%{{eif\:min({N}\,{N}*t/0.8)\:d}}"
                 vf += (f",drawtext=fontfile={FONTFILE}:text='{txt}':fontsize=110:fontcolor={col}:"
                        f"x=90:y={by-170}:borderw=7:bordercolor=0x101010")
                 # 단위는 별도 정적 텍스트(퍼센트는 %{} 뒤에 붙이면 깨져서 분리)

@@ -7,6 +7,7 @@
   :root{
     --up:{{ d.up_color }};--down:{{ d.down_color }};--accent:{{ d.accent }};
     --bg:{{ d.bg }};--card:{{ d.card }};
+    --up-rgb:{{ d.up_rgb }};--down-rgb:{{ d.down_rgb }};--accent-rgb:{{ d.accent_rgb }};
   }
 </style>
 </head>
@@ -101,13 +102,22 @@
   {% if slide.is_card %}
   <div class="scene-page">{{ slide.page }}</div>
   {% else %}
-  <div class="scene-kicker">{{ slide.kicker }}</div>
-  <div class="scene-wrap {{ 'up' if slide.cdir=='up' else ('down' if slide.cdir=='down' else '') }}">
-    <div class="scene-bar"></div>
-    <div class="scene-text">{{ slide.text }}</div>
-    {% if slide.sub %}<div class="scene-sub">{{ slide.sub }}</div>{% endif %}
+  <div class="ic {{ 'up' if slide.cdir=='up' else ('down' if slide.cdir=='down' else 'flat') }}">
+    <div class="ic-glow"></div>
+    <div class="ic-top">{{ slide.kicker }}<span class="ic-page">{{ slide.page }}</span></div>
+    <div class="ic-body">
+      <div class="ic-bar"></div>
+      <div class="ic-title">{{ slide.text }}</div>
+      {% if slide.sub %}<div class="ic-sub">{{ slide.sub }}</div>{% endif %}
+      {% if slide.n %}<div class="ic-num">{{ slide.n }}{% if slide.unit %}<span class="ic-unit">{{ slide.unit }}</span>{% endif %}</div>{% endif %}
+    </div>
+    <svg class="ic-chart" viewBox="0 0 320 150" preserveAspectRatio="none">
+      <defs><linearGradient id="g{{ slide.idx }}" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" class="cg0"/><stop offset="1" class="cg1"/></linearGradient></defs>
+      <polygon points="{{ slide.chart_area }}" fill="url(#g{{ slide.idx }})"/>
+      <polyline points="{{ slide.chart_line }}" class="cline" fill="none"/>
+    </svg>
   </div>
-  <div class="scene-page">{{ slide.page }}</div>
   {% endif %}
 {% endif %}
 
